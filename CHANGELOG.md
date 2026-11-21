@@ -13,6 +13,8 @@
 - `lanpair.discovery`: `Announcer` tells the LAN where a device listens, and
   `browse()` / `find(device_id)` locate devices with mDNS / DNS-SD. Announcements are
   validated and treated as untrusted hints. Optional: `pip install "lanpair[discovery]"`.
+- Property-based tests (Hypothesis) and coverage-guided fuzzing of `Opener.open` (Atheris,
+  60 s on every CI run). CI installs from hash-pinned lock files (`requirements/`).
 
 ## 0.1.0 (2026-11-21)
 

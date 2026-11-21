@@ -6,7 +6,7 @@ on:
   pull_request:
     # A pull request that only changes documentation skips the tests (main still runs
     # everything after the merge).
-    paths-ignore: ["docs/**", "**/*.md", "LICENSE"]
+    paths-ignore: ["docs/**", "**/*.md", "LICENSE"]  # requirements/ and fuzz/ do run CI
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -28,7 +28,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install --require-hashes -r requirements/dev.txt
+      - run: python -m pip install --no-deps -e .
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
@@ -50,5 +51,34 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
-      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install --require-hashes -r requirements/dev.txt
+      - run: python -m pip install --no-deps -e .
       - run: pytest
+
+  fuzz:
+    # Coverage-guided fuzzing of the code that parses untrusted network input. Anything
+    # other than EnvelopeError is a crash, which fails the job and keeps the crashing input.
+    name: Fuzz Opener.open
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install --require-hashes -r requirements/fuzz.txt
+      - run: python -m pip install --no-deps -e .
+      - name: Fuzz for 60 seconds, starting from the seed envelopes in fuzz/corpus
+        run: |
+          mkdir -p corpus-work
+          python fuzz/fuzz_opener.py corpus-work fuzz/corpus -dict=fuzz/json.dict \
+            -max_total_time=60 -artifact_prefix=crash-
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: fuzz-crash
+          path: crash-*
+          if-no-files-found: ignore
