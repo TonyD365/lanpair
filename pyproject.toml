@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lanpair"
-version = "0.1.0"
+version = "1.0.0rc1"
 description = "Secure pairing and signed messaging between devices on the same LAN"
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [{ name = "TonyD365" }]
 dependencies = ["cryptography>=50.0.2"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
     "Topic :: Security :: Cryptography",
     "Topic :: System :: Networking",

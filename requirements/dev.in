@@ -1,0 +1,8 @@
+# Everything CI needs to lint and test lanpair. Regenerate the .txt with scripts/lock.sh.
+cryptography>=42
+pytest
+ruff
+mypy
+keyring>=25
+zeroconf>=0.136
+hypothesis

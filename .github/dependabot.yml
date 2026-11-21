@@ -12,7 +12,8 @@ updates:
       actions:
         patterns: ["*"]
   - package-ecosystem: pip
-    directory: /
+    # pyproject.toml, and the hash-pinned lock files CI installs from (scripts/lock.sh)
+    directories: ["/", "/requirements"]
     schedule:
       interval: weekly
     cooldown:

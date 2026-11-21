@@ -29,9 +29,10 @@ handling and replay windows: a week of security work for a side feature.
 encrypted to its recipient, signed by its sender and checked for replay before your code
 ever sees it.
 
-> **Status: early development (0.x).** The cryptographic core works and is tested;
-> discovery, pairing and the high-level API are being built. The API may change, and there
-> has been no external security review yet. Don't protect anything valuable with it yet.
+> **Status: 1.x, stable API.** Identity, encrypted envelopes, replay protection, key
+> storage and discovery are done, tested and fuzzed, and follow semantic versioning.
+> Pairing flows (QR, 6-digit code) and the `Host` / `Device` API are still to come and will
+> be added without breaking changes. There has been no external security review yet.
 
 ## Contents
 
@@ -163,7 +164,7 @@ host.send("room-3", {"type": "close"})
 | QR code pairing | 🔜 |
 | 6-digit code pairing with a PAKE | 🔜 |
 | `Host` / `Device` API | 🔜 |
-| Published on PyPI | ✅ 0.1.0 |
+| Published on PyPI | ✅ 1.0.0 |
 
 Want to help with one of these? See the [open issues](https://github.com/TonyD365/lanpair/issues).
 
