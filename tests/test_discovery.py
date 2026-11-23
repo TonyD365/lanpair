@@ -10,7 +10,7 @@ ID = "0123456789abcdef"
 
 def test_service_type():
     assert service_type() == "_lanpair._tcp.local."
-    assert service_type("ytktv-desk") == "_ytktv-desk._tcp.local."
+    assert service_type("my-app") == "_my-app._tcp.local."
     for bad in ["", "UPPER", "-x", "x-", "a" * 16, "a.b", "a_b"]:
         with pytest.raises(ValueError):
             service_type(bad)

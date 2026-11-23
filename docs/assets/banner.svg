@@ -1,34 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 200" role="img" aria-labelledby="t d">
   <title id="t">lanpair</title>
-  <desc id="d">Two devices on one network, linked by a locked channel</desc>
+  <desc id="d">The lanpair wordmark, with the p and a linked like a chain. Pair once, then every message is signed, encrypted and replay-proof on your LAN.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0f172a"/>
       <stop offset="1" stop-color="#1e3a5f"/>
     </linearGradient>
-    <linearGradient id="link" x1="0" x2="1">
-      <stop offset="0" stop-color="#38bdf8"/>
-      <stop offset="1" stop-color="#34d399"/>
-    </linearGradient>
+    <clipPath id="top"><rect x="316" y="66" width="38" height="33"/></clipPath>
+    <clipPath id="bottom"><rect x="316" y="121" width="38" height="33"/></clipPath>
+    <mask id="under-a" maskUnits="userSpaceOnUse" x="0" y="0" width="520" height="220">
+      <rect width="520" height="220" fill="#fff"/>
+      <circle cx="365" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#top)"/>
+    </mask>
+    <mask id="under-p" maskUnits="userSpaceOnUse" x="0" y="0" width="520" height="220">
+      <rect width="520" height="220" fill="#fff"/>
+      <circle cx="305" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#bottom)"/>
+    </mask>
   </defs>
   <rect width="880" height="200" rx="18" fill="url(#bg)"/>
-  <!-- left device: laptop -->
-  <g fill="none" stroke="#38bdf8" stroke-width="4" stroke-linejoin="round">
-    <rect x="70" y="62" width="96" height="62" rx="6"/>
-    <path d="M56 138h124l-10 10H66z" fill="#38bdf8" fill-opacity=".25"/>
+  <g transform="translate(253 6) scale(.72)">
+    <g fill="none" stroke="#f8fafc" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 30V150"/>
+      <circle cx="85" cy="110" r="40"/>
+      <path d="M125 70V150"/>
+      <path d="M160 70V150M160 105a35 35 0 0 1 70 0V150"/>
+      <path d="M265 70V195" stroke="#38bdf8"/>
+      <circle cx="305" cy="110" r="40" stroke="#38bdf8" mask="url(#under-a)"/>
+      <circle cx="365" cy="110" r="40" stroke="#34d399" mask="url(#under-p)"/>
+      <path d="M405 70V150" stroke="#34d399"/>
+      <path d="M440 74V150"/>
+      <path d="M475 70V150M475 105a35 35 0 0 1 35-35"/>
+    </g>
+    <circle cx="440" cy="38" r="13" fill="#34d399"/>
   </g>
-  <!-- right device: phone -->
-  <g fill="none" stroke="#34d399" stroke-width="4">
-    <rect x="300" y="52" width="52" height="96" rx="9"/>
-    <circle cx="326" cy="134" r="3" fill="#34d399"/>
-  </g>
-  <!-- link -->
-  <path d="M182 100h102" stroke="url(#link)" stroke-width="4" stroke-dasharray="8 7" stroke-linecap="round"/>
-  <g transform="translate(220 78)">
-    <rect x="0" y="16" width="28" height="22" rx="4" fill="#fbbf24"/>
-    <path d="M6 16v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#fbbf24" stroke-width="4"/>
-  </g>
-  <text x="410" y="100" fill="#f8fafc" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="700">lanpair</text>
-  <text x="412" y="138" fill="#94a3b8" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="20">Pair once. Then every message is signed,</text>
-  <text x="412" y="164" fill="#94a3b8" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="20">encrypted and replay-proof on your LAN.</text>
+  <text x="440" y="180" text-anchor="middle" fill="#94a3b8" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="19">Pair once. Then every message is signed, encrypted and replay-proof on your LAN.</text>
 </svg>
