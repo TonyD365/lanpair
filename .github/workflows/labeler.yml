@@ -1,0 +1,25 @@
+# Labels pull requests by the parts of lanpair they touch (.github/labeler.yml).
+# Two steps, so a pull request from a fork is labelled too without its code ever
+# getting write access:
+#   1. This job runs on pull_request with a read-only token and only saves the
+#      pull request's number.
+#   2. label-apply.yml runs afterwards from main, with write access, and labels
+#      that pull request from the list of changed files. It never runs its code.
+name: Label pull requests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  note:
+    runs-on: ubuntu-slim
+    steps:
+      - run: echo "${{ github.event.pull_request.number }}" > pr-number
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-number
+          path: pr-number
+          retention-days: 1

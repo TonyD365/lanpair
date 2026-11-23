@@ -1,0 +1,22 @@
+# Area labels for pull requests, by the files they touch (see workflows/labeler.yml).
+crypto:
+  - changed-files:
+      - any-glob-to-any-file: ["src/lanpair/identity.py", "src/lanpair/envelope.py", "src/lanpair/pairing*.py", "src/lanpair/channel*.py"]
+discovery:
+  - changed-files:
+      - any-glob-to-any-file: ["src/lanpair/discovery*.py"]
+keystore:
+  - changed-files:
+      - any-glob-to-any-file: ["src/lanpair/keystore*.py"]
+ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ["*.md", "docs/**", "site/**"]
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ["pyproject.toml"]
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ["tests/**"]
