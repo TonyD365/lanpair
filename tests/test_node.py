@@ -226,7 +226,31 @@ def test_keeps_receiving_after_sending_to_a_closed_port(pair):
     host.send(dev.device_id, "lost")  # Windows reports the closed port on the next receive
     time.sleep(0.3)
     dev.send("still listening")
-    assert host.receive(timeout=2).body == "still listening"
+    msg = host.receive(timeout=2)
+    assert msg is not None, f"listener alive: {host._thread.is_alive()}, dropped: {host.dropped}"
+    assert msg.body == "still listening"
+
+
+def test_keeps_receiving_after_a_file_error(pair, monkeypatch):
+    host, dev = pair
+    put = host._book.put
+    calls = []
+
+    def fail_once(peer):
+        calls.append(peer)
+        if len(calls) == 1:
+            raise PermissionError("state file is locked")
+        put(peer)
+
+    monkeypatch.setattr(host._book, "put", fail_once)
+    dev.send("maybe lost")  # the failure may hit this or a control message still in flight
+    assert wait(lambda: host.dropped > 0)
+    assert host._thread.is_alive()
+    dev.send("still listening")
+    msg = host.receive(timeout=2)
+    if msg is not None and msg.body == "maybe lost":
+        msg = host.receive(timeout=2)
+    assert msg is not None and msg.body == "still listening"
 
 
 def test_bind_limits_the_listening_interface(tmp_path):

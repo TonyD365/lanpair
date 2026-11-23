@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1 (2026-11-23)
+
+- Fixed: a file or socket error while handling a UDP message, such as a locked state file
+  on Windows, stopped the node from receiving until it was restarted. It now drops that
+  message and keeps listening.
+- New wordmark logo and icon.
+
 ## 1.4.0 (2026-11-23)
 
 - Reliable delivery: `send(..., ack=True)` retries until the peer confirms, delivers once,

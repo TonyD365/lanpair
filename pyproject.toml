@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lanpair"
-version = "1.4.0"
+version = "1.4.1"
 description = "Secure pairing and signed messaging between devices on the same LAN"
 readme = "README.md"
 license = "MIT"

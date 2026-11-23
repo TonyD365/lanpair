@@ -37,4 +37,4 @@ __all__ = [
     "load_or_create_identity",
     "pairing_code",
 ]
-__version__ = "1.4.0"
+__version__ = "1.4.1"
