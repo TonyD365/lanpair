@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 (2026-11-23)
 
 - Reliable delivery: `send(..., ack=True)` retries until the peer confirms, delivers once,
   and raises `DeliveryError` on timeout.
