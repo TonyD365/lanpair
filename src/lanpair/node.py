@@ -478,7 +478,8 @@ class _Node:
                 continue
             try:
                 self._handle(data, f"{addr[0]}:{addr[1]}")
-            except (EnvelopeError, PairingError, ValueError):
+            except (EnvelopeError, PairingError, ValueError, OSError):
+                # OSError: a state file or reply failed. Lose this message, not the listener.
                 self.dropped += 1
 
     def _accept(self) -> None:
