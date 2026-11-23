@@ -1,0 +1,26 @@
+# Free Supabase projects pause after a week without activity. This calls the PR assistant's
+# signed sweep endpoint, which runs a database query and refreshes open pull requests.
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 6 * * 1,4' # twice a week, so one failed run cannot reach the 7-day limit
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-slim
+    timeout-minutes: 3
+    steps:
+      - name: Call the sweep endpoint
+        env:
+          SWEEP_SECRET: ${{ secrets.SUPABASE_SWEEP_SECRET }}
+        run: |
+          set -euo pipefail
+          body="keepalive $(date -u +%FT%TZ)"
+          sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$SWEEP_SECRET" -r | cut -d' ' -f1)
+          curl -fsS --retry 3 --retry-all-errors --max-time 30 -X POST \
+            -H "x-sweep-signature: sha256=$sig" -d "$body" \
+            https://fcgpbbglbgnzrednkcay.supabase.co/functions/v1/pr-assistant/sweep
