@@ -243,11 +243,13 @@ def test_keeps_receiving_after_a_file_error(pair, monkeypatch):
         put(peer)
 
     monkeypatch.setattr(host._book, "put", fail_once)
-    dev.send("lost")
+    dev.send("maybe lost")  # the failure may hit this or a control message still in flight
     assert wait(lambda: host.dropped > 0)
     assert host._thread.is_alive()
     dev.send("still listening")
     msg = host.receive(timeout=2)
+    if msg is not None and msg.body == "maybe lost":
+        msg = host.receive(timeout=2)
     assert msg is not None and msg.body == "still listening"
 
 
