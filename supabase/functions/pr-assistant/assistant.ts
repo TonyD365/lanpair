@@ -32,7 +32,7 @@ function isLive(number: number): boolean {
   return live === "*" || live.split(",").map((s) => s.trim()).includes(String(number));
 }
 
-async function request(method: string, path: string, body?: unknown): Promise<Response> {
+export async function request(method: string, path: string, body?: unknown): Promise<Response> {
   const res = await fetch(path.startsWith("http") ? path : `${API}${path}`, {
     method,
     headers: {
@@ -50,13 +50,13 @@ async function request(method: string, path: string, body?: unknown): Promise<Re
 }
 
 // deno-lint-ignore no-explicit-any
-async function get(path: string): Promise<any> {
+export async function get(path: string): Promise<any> {
   const res = await request("GET", path);
   return res.ok ? await res.json() : null;
 }
 
 // deno-lint-ignore no-explicit-any
-async function getAll(path: string): Promise<any[]> {
+export async function getAll(path: string): Promise<any[]> {
   // deno-lint-ignore no-explicit-any
   const items: any[] = [];
   let url: string | null = `${path}${path.includes("?") ? "&" : "?"}per_page=100`;
@@ -69,7 +69,7 @@ async function getAll(path: string): Promise<any[]> {
   return items;
 }
 
-async function graphql(query: string, variables: Record<string, unknown>) {
+export async function graphql(query: string, variables: Record<string, unknown>) {
   const res = await request("POST", "/graphql", { query, variables });
   const json = await res.json();
   if (json.errors) throw new Error(json.errors[0]?.message ?? "GraphQL error");

@@ -1,6 +1,7 @@
 // GitHub webhook endpoint. Verifies the signature, answers at once, and works in the background.
 import postgres from "npm:postgres@3.4.5";
 import { answerTerms, openNumbers, refresh, sweep, thanks, welcome } from "./assistant.ts";
+import { announceFixed, announceReleased, command, labelByFiles, reminders, stale, triage } from "./bots.ts";
 import { BOT, REPO, termsReply } from "./logic.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
@@ -28,18 +29,32 @@ export async function route(event: string, p: any) {
   if (event === "pull_request") {
     const pr = p.pull_request;
     if (p.action === "closed") {
-      if (pr.merged) await thanks(pr.number, pr.user.login, pr.user.type);
+      if (pr.merged) {
+        await thanks(pr.number, pr.user.login, pr.user.type);
+        await announceFixed(pr);
+      }
     } else if (PR_ACTIONS.includes(p.action)) {
       if (p.action === "opened" && FIRST_TIME.includes(pr.author_association)) {
         await welcome(pr.number, pr.user.login);
       }
+      if (["opened", "reopened", "synchronize"].includes(p.action)) {
+        await labelByFiles(pr.number).catch((e) => console.error(`labels pr=${pr.number}: ${e}`));
+      }
       await refresh(pr.number);
     }
+  } else if (event === "issues") {
+    if (["opened", "edited"].includes(p.action)) await triage(p.issue);
+  } else if (event === "release") {
+    if (p.action === "published") await announceReleased(p.release);
   } else if (event === "pull_request_review") {
     await refresh(p.pull_request.number);
   } else if (event === "issue_comment") {
-    if (!p.issue.pull_request || !["created", "edited"].includes(p.action)) return;
+    if (!["created", "edited"].includes(p.action)) return;
     if ([BOT, "github-actions[bot]"].includes(p.comment.user.login)) return;
+    if (p.action === "created") {
+      await command(p).catch((e) => console.error(`command: ${e}`));
+    }
+    if (!p.issue.pull_request) return;
     if (termsReply(p.comment.body) === null) return; // not addressed to the bot: no API calls
     await answerTerms(p.issue.number, p.comment, p.issue.user.id);
     await refresh(p.issue.number);
@@ -79,7 +94,13 @@ if (import.meta.main) {
       );
       if (!ok) return new Response("Bad signature", { status: 401 });
       await touchDatabase();
-      background(sweep());
+      // pg_net sends the task as a JSON string, e.g. "hourly 1795462421".
+      const task = new TextDecoder().decode(body).replace(/^"/, "").split(" ")[0];
+      background((async () => {
+        await sweep();
+        if (task === "hourly") await reminders();
+        if (task === "daily") await stale();
+      })());
       return new Response("accepted", { status: 202 });
     }
     const ok = await validSignature(

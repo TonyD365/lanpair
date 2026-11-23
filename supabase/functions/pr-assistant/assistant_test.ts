@@ -41,6 +41,8 @@ function world(over: Record<string, unknown> = {}) {
     }
     if (method === "GET" && p === "/pulls") return json(w.pr.state === "OPEN" ? [{ number: 50, head: { sha: w.pr.head } }] : []);
     if (method === "GET" && p === "/pulls/50") return json({ user: { login: w.pr.author, id: w.pr.authorId } });
+    if (method === "GET" && p === "/pulls/50/files") return json([]);
+    if (method === "GET" && p === "/issues/50") return json({ labels: [] });
     if (method === "GET" && p === "/pulls/50/reviews") return json(w.reviews);
     if (method === "GET" && p.endsWith("/check-runs")) return json({ check_runs: w.checks });
     if (method === "GET" && p === "/actions/runs") return json({ workflow_runs: w.runs });
