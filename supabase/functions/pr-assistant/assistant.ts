@@ -10,7 +10,8 @@ import {
   latestChecks,
   ledgerState,
   marker,
-  PHRASE,
+  DECLINE_REPLY,
+  REPLY,
   renderStatus,
   REPO,
   SERVER,
@@ -154,10 +155,10 @@ async function askTerms(w: Writer, author: string, comments: { body: string }[])
     "**If you agree, reply to this pull request with a comment that says exactly:**",
     "",
     "```",
-    PHRASE,
+    REPLY,
     "```",
     "",
-    "Agreeing once covers your later pull requests to lanpair too, until you withdraw it by replying `I do not agree to the lanpair contribution terms`. If you do not agree, the pull request cannot be merged.",
+    "Agreeing once covers your later pull requests to lanpair too, until you withdraw it by replying `@TonyD365-Agent I do not agree to the lanpair contribution terms`. If you do not agree, the pull request cannot be merged.",
   ].join("\n"));
 }
 
@@ -218,7 +219,7 @@ export async function refresh(number: number, doneSuite = 0, doneConclusion = ""
   await w.send("POST", `/repos/${REPO}/statuses/${head}`, {
     state: agreed ? "success" : "failure",
     context: "Contribution terms",
-    description: agreed ? (terms === "exempt" ? "Not needed for the maintainer" : "Agreed") : `Reply: ${PHRASE}`,
+    description: agreed ? (terms === "exempt" ? "Not needed for the maintainer" : "Agreed") : `Reply: ${REPLY}`,
     target_url: `${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms`,
   });
 
@@ -272,7 +273,7 @@ export async function answerTerms(number: number, c: {
     const issue = await w.send("POST", `/repos/${REPO}/issues`, {
       title: "Contribution terms: agreements (kept by the bot)",
       labels: ["terms-ledger"],
-      body: `This issue is the record of who agreed to the [contribution terms](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms). The bot keeps it; it is closed and locked so it stays out of the way.\n\n- **To agree**, reply on your pull request: \`${PHRASE}\`\n- **To withdraw**, reply on any of your pull requests: \`I do not agree to the lanpair contribution terms\`\n\nOne entry per answer, newest last. A person's latest entry counts; people are matched by their account number, so a renamed account keeps its agreement.`,
+      body: `This issue is the record of who agreed to the [contribution terms](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms). The bot keeps it; it is closed and locked so it stays out of the way.\n\n- **To agree**, reply on your pull request: \`${REPLY}\`\n- **To withdraw**, reply on any of your pull requests: \`${DECLINE_REPLY}\`\n\nOne entry per answer, newest last. A person's latest entry counts; people are matched by their account number, so a renamed account keeps its agreement.`,
     }) as { number: number };
     ledger = issue.number;
     await w.send("PUT", `/repos/${REPO}/issues/${ledger}/lock`, { lock_reason: "resolved" });
@@ -284,8 +285,8 @@ export async function answerTerms(number: number, c: {
     body: `<!-- terms:${what}:id=${c.user.id}:${c.user.login} -->\n${mark} · \`${c.user.login}\` (account ${c.user.id}) · PR #${number} · [their comment](${c.html_url}) · ${when} UTC`,
   });
   await w.comment(what === "agreed"
-    ? `<!-- lanpair-terms-ok -->\n✅ Thank you, @${c.user.login}: your agreement to the contribution terms is recorded. It covers your later pull requests too, until you reply \`I do not agree to the lanpair contribution terms\`.`
-    : `<!-- lanpair-terms-declined -->\nNoted, @${c.user.login}: you do not agree to the contribution terms, so this pull request cannot be merged. If you change your mind, reply \`${PHRASE}\`.`);
+    ? `<!-- lanpair-terms-ok -->\n✅ Thank you, @${c.user.login}: your agreement to the contribution terms is recorded. It covers your later pull requests too, until you reply \`${DECLINE_REPLY}\`.`
+    : `<!-- lanpair-terms-declined -->\nNoted, @${c.user.login}: you do not agree to the contribution terms, so this pull request cannot be merged. If you change your mind, reply \`${REPLY}\`.`);
 }
 
 async function once(number: number, tag: string, body: string) {
@@ -309,7 +310,7 @@ export function welcome(number: number, author: string) {
     "  ```",
     `- **The rules:** English in the code, comments and commits; tests need no network; one topic per pull request; changes to keys, signatures or pairing explain their security impact. See [CONTRIBUTING.md](${base}/CONTRIBUTING.md) and the [code of conduct](${base}/CODE_OF_CONDUCT.md).`,
     "- **Contribution terms:** I will post them in a moment; reply to agree, once, and it counts for your later pull requests too.",
-    "- **The checks** run after a maintainer approves running them for a first-time contributor. My status comment below says what passed, what failed and what usually fixes it. Comment `/help` for the commands, e.g. `/retest`.",
+    "- **The checks** run after a maintainer approves running them for a first-time contributor. My status comment below says what passed, what failed and what usually fixes it. Comment `@TonyD365-Agent /help` for the commands, e.g. `@TonyD365-Agent /retest`.",
     "- **Questions** are welcome right here, in English or Chinese.",
   ].join("\n"));
 }

@@ -6,7 +6,7 @@
 # - Fixed notices: a merged pull request that says "Fixes #12" (or closes / resolves) leaves
 #   a note on #12 and the label fixed-in-next-release; when a release is published, those
 #   issues hear which version has the fix, and the label is removed.
-# - Commands in issue comments: /label, /unlabel (maintainers), /close, /reopen (the
+# - Commands in issue comments, after @TonyD365-Agent: /label, /unlabel (maintainers), /close, /reopen (the
 #   issue's author or a maintainer), /help.
 name: Issue assistant
 
@@ -133,7 +133,7 @@ jobs:
   command:
     if: >-
       github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/') &&
+      startsWith(github.event.comment.body, '@TonyD365-Agent /') &&
       github.event.comment.user.login != 'TonyD365-Agent'
     runs-on: ubuntu-slim
     permissions:
@@ -153,20 +153,21 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set -uo pipefail
-          line=$(printf '%s' "$BODY" | head -n 1 | tr -d '\r')
+          # GitHub's startsWith ignores case, so the mention is removed the same way.
+          line=$(printf '%s' "$BODY" | head -n 1 | tr -d '\r' | sed -E 's/^@tonyd365-agent[[:space:]]+//I')
           cmd=$(printf '%s' "$line" | awk '{print tolower($1)}')
           rest=$(printf '%s' "$line" | sed -E 's#^/[A-Za-z]+[[:space:]]*##')
           case "$ROLE" in OWNER|MEMBER|COLLABORATOR) maintainer=1 ;; *) maintainer="" ;; esac
           react() { gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content="$1" >/dev/null || true; }
           reply() { printf '%s\n' "$@" > reply.md; gh issue comment "$NUMBER" --body-file reply.md >/dev/null; }
-          deny() { react confused; reply "Sorry @$WHO, \`$cmd\` is for $1."; exit 0; }
+          deny() { react confused; reply "Sorry @$WHO, \`@TonyD365-Agent $cmd\` is for $1."; exit 0; }
           case "$cmd" in
             /help)
               react eyes
-              reply "Commands for this issue (at the start of a comment):" "" \
-                "- \`/close\`, \`/reopen\`: close or reopen it (whoever opened it, or a maintainer)." \
-                "- \`/label name ...\`, \`/unlabel name ...\`: add or remove labels (maintainers)." \
-                "- \`/help\`: this list."
+              reply "Commands for this issue (start a comment with @TonyD365-Agent, as shown):" "" \
+                "- \`@TonyD365-Agent /close\`, \`@TonyD365-Agent /reopen\`: close or reopen it (whoever opened it, or a maintainer)." \
+                "- \`@TonyD365-Agent /label name ...\`, \`@TonyD365-Agent /unlabel name ...\`: add or remove labels (maintainers)." \
+                "- \`@TonyD365-Agent /help\`: this list."
               ;;
             /close|/reopen)
               [ "$WHO_ID" = "$AUTHOR_ID" ] || [ -n "$maintainer" ] || deny "whoever opened the issue, or a maintainer"
@@ -176,7 +177,7 @@ jobs:
               ;;
             /label|/unlabel)
               [ -n "$maintainer" ] || deny "maintainers (the repository's owner and collaborators)"
-              [ -n "$rest" ] || { reply "Usage: \`$cmd name\` (several names separated by spaces or commas)."; exit 0; }
+              [ -n "$rest" ] || { reply "Usage: \`@TonyD365-Agent $cmd name\` (several names separated by spaces or commas)."; exit 0; }
               done_list=""
               # Split on spaces and commas without expanding * or ? against the runner's files.
               IFS=', ' read -ra names <<<"$rest"
