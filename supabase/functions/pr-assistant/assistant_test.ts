@@ -1,7 +1,7 @@
 // The whole assistant against an in-memory GitHub: real code, no network.
 import { route } from "./index.ts";
 import { sweep } from "./assistant.ts";
-import { PHRASE, REPO } from "./logic.ts";
+import { DECLINE_REPLY, PHRASE, REPLY, REPO } from "./logic.ts";
 
 // deno-lint-ignore no-explicit-any
 type Any = any;
@@ -109,8 +109,8 @@ Deno.test("first pull request: welcome and terms, once, and it cannot pass", asy
 Deno.test("agree: ledger, green check; repeat is recorded once", async () => {
   const w = world();
   await route("pull_request", pull(w, "opened"));
-  await route("issue_comment", say(w, PHRASE));
-  await route("issue_comment", say(w, PHRASE));
+  await route("issue_comment", say(w, REPLY));
+  await route("issue_comment", say(w, REPLY));
   eq(w.ledger.length, 1, "ledger");
   ok(w.locked && w.closed, "ledger locked and closed");
   eq(has(w, "<!-- lanpair-terms-ok"), 1, "reply");
@@ -122,24 +122,31 @@ Deno.test("agree: ledger, green check; repeat is recorded once", async () => {
 Deno.test("withdraw turns it red again", async () => {
   const w = world();
   await route("pull_request", pull(w, "opened"));
-  await route("issue_comment", say(w, PHRASE));
-  await route("issue_comment", say(w, "I do not agree to the lanpair contribution terms"));
+  await route("issue_comment", say(w, REPLY));
+  await route("issue_comment", say(w, DECLINE_REPLY));
   eq(status(w), "failure");
   ok(w.pr.labels.includes("Terms-Declined"), "label");
   ok(!w.pr.labels.includes("Terms-Agreed"), "old label");
 });
 
+Deno.test("a comment without the mention does nothing", async () => {
+  const w = world();
+  await route("issue_comment", say(w, PHRASE));
+  eq(w.writes, 0, "writes");
+  eq(w.ledger.length, 0, "ledger");
+});
+
 Deno.test("someone else cannot agree for the author", async () => {
   const w = world();
   await route("pull_request", pull(w, "opened"));
-  await route("issue_comment", say(w, PHRASE, { login: "mallory", id: 66 }));
+  await route("issue_comment", say(w, REPLY, { login: "mallory", id: 66 }));
   eq(w.ledger.length, 0, "ledger");
   eq(status(w), "failure");
 });
 
 Deno.test("the bot's own comment does nothing", async () => {
   const w = world({ author: "TonyD365" });
-  await route("issue_comment", say(w, PHRASE, { login: BOT, id: 1 }));
+  await route("issue_comment", say(w, REPLY, { login: BOT, id: 1 }));
   eq(w.writes, 0, "writes");
 });
 
@@ -248,7 +255,7 @@ Deno.test("shadow mode sends no writes", async () => {
   try {
     const w = world();
     await route("pull_request", pull(w, "opened"));
-    await route("issue_comment", say(w, PHRASE));
+    await route("issue_comment", say(w, REPLY));
     eq(w.writes, 0, "writes");
   } finally {
     Deno.env.set("LIVE_PRS", "*");

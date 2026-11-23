@@ -1,4 +1,5 @@
-# Commands in pull request comments, and stale pull requests.
+# Commands in pull request comments, and stale pull requests. A command must start the
+# comment with @TonyD365-Agent, e.g. "@TonyD365-Agent /retest"; other comments cost no run.
 #
 #   /help                      what the bot can do (anyone)
 #   /retest                    re-run the failed or cancelled checks (the PR's author or a maintainer)
@@ -33,7 +34,7 @@ jobs:
   command:
     if: >-
       github.event_name == 'issue_comment' && github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/') &&
+      startsWith(github.event.comment.body, '@TonyD365-Agent /') &&
       github.event.comment.user.login != 'TonyD365-Agent'
     runs-on: ubuntu-slim
     permissions:
@@ -54,7 +55,8 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set -euo pipefail
-          line=$(printf '%s' "$BODY" | head -n 1 | tr -d '\r')
+          # GitHub's startsWith ignores case, so the mention is removed the same way.
+          line=$(printf '%s' "$BODY" | head -n 1 | tr -d '\r' | sed -E 's/^@tonyd365-agent[[:space:]]+//I')
           read -r cmd arg _ <<<"$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')" || true
           rest=$(printf '%s' "$line" | sed -E 's#^/[A-Za-z]+[[:space:]]*##')  # as typed, for labels
           case "$ROLE" in OWNER|MEMBER|COLLABORATOR) maintainer=1 ;; *) maintainer="" ;; esac
@@ -62,28 +64,28 @@ jobs:
           reply() { printf '%s\n' "$@" > reply.md; gh pr comment "$NUMBER" --body-file reply.md >/dev/null; }
           author_or_maintainer() {
             [ "$WHO_ID" = "$AUTHOR_ID" ] || [ -n "$maintainer" ] && return 0
-            react confused; reply "Sorry @$WHO, only the pull request's author or a maintainer can use \`$cmd\`."; exit 0
+            react confused; reply "Sorry @$WHO, only the pull request's author or a maintainer can use \`@TonyD365-Agent $cmd\`."; exit 0
           }
           maintainer_only() {
             [ -n "$maintainer" ] && return 0
-            react confused; reply "Sorry @$WHO, \`$cmd\` is for maintainers (the repository's owner and collaborators)."; exit 0
+            react confused; reply "Sorry @$WHO, \`@TonyD365-Agent $cmd\` is for maintainers (the repository's owner and collaborators)."; exit 0
           }
           case "$cmd" in
             /help)
               react eyes
-              reply "Commands for this pull request (write them at the start of a comment):" "" \
-                "- \`/retest\`: re-run the checks that failed or were cancelled (the author or a maintainer)." \
-                "- \`/ready\`: mark a draft as ready for review (author or maintainer)." \
-                "- \`/close\`, \`/reopen\`: close or reopen this pull request (author or maintainer)." \
-                "- \`/update\`: bring this branch up to date with \`main\` (author or maintainer; maintainers only on a fork)." \
-                "- \`/remind 3d\` (or \`12h\`, up to \`30d\`), optionally with a note: the bot reminds you here then." \
-                "- \`/label name ...\`, \`/unlabel name ...\`: add or remove labels (maintainers)." \
-                "- \`/help\`: this list." "" \
-                "Other things the bot answers: \`I agree to the lanpair contribution terms\` and \`I do not agree to the lanpair contribution terms\`."
+              reply "Commands for this pull request (start a comment with @TonyD365-Agent, as shown):" "" \
+                "- \`@TonyD365-Agent /retest\`: re-run the checks that failed or were cancelled (the author or a maintainer)." \
+                "- \`@TonyD365-Agent /ready\`: mark a draft as ready for review (author or maintainer)." \
+                "- \`@TonyD365-Agent /close\`, \`@TonyD365-Agent /reopen\`: close or reopen this pull request (author or maintainer)." \
+                "- \`@TonyD365-Agent /update\`: bring this branch up to date with \`main\` (author or maintainer; maintainers only on a fork)." \
+                "- \`@TonyD365-Agent /remind 3d\` (or \`12h\`, up to \`30d\`), optionally with a note: the bot reminds you here then." \
+                "- \`@TonyD365-Agent /label name ...\`, \`@TonyD365-Agent /unlabel name ...\`: add or remove labels (maintainers)." \
+                "- \`@TonyD365-Agent /help\`: this list." "" \
+                "Other things the bot answers: \`@TonyD365-Agent I agree to the lanpair contribution terms\` and \`@TonyD365-Agent I do not agree to the lanpair contribution terms\`."
               ;;
             /retest)
               if [ "$WHO_ID" != "$AUTHOR_ID" ] && [ -z "$maintainer" ]; then
-                react confused; reply "Sorry @$WHO, only the pull request's author or a maintainer can use \`/retest\`."; exit 0
+                react confused; reply "Sorry @$WHO, only the pull request's author or a maintainer can use \`@TonyD365-Agent /retest\`."; exit 0
               fi
               react eyes
               head=$(gh pr view "$NUMBER" --json headRefOid -q .headRefOid)
@@ -111,7 +113,7 @@ jobs:
             /close)
               author_or_maintainer
               gh api -X PATCH "repos/$GH_REPO/pulls/$NUMBER" -f state=closed >/dev/null
-              react "+1"; reply "Closed on request of @$WHO. Comment \`/reopen\` to open it again."
+              react "+1"; reply "Closed on request of @$WHO. Comment \`@TonyD365-Agent /reopen\` to open it again."
               ;;
             /reopen)
               author_or_maintainer
@@ -124,7 +126,7 @@ jobs:
               # maintainer approving them first, so there only maintainers may ask for it.
               if [ -z "$maintainer" ] && [ "$(gh pr view "$NUMBER" --json isCrossRepository -q .isCrossRepository)" = true ]; then
                 react confused
-                reply "Sorry @$WHO, on a pull request from a fork only a maintainer can use \`/update\`. Merge \`main\` into your branch yourself, or ask a maintainer."
+                reply "Sorry @$WHO, on a pull request from a fork only a maintainer can use \`@TonyD365-Agent /update\`. Merge \`main\` into your branch yourself, or ask a maintainer."
                 exit 0
               fi
               head=$(gh pr view "$NUMBER" --json headRefOid -q .headRefOid)
@@ -140,7 +142,7 @@ jobs:
               case "$arg" in
                 [1-9]d|[12][0-9]d|30d) secs=$(( ${arg%d} * 86400 )) ;;
                 [1-9]h|[1-9][0-9]h|[1-6][0-9][0-9]h) secs=$(( ${arg%h} * 3600 )) ;;
-                *) react confused; reply "Usage: \`/remind 3d\` or \`/remind 12h\` (up to 30 days), optionally followed by a note."; exit 0 ;;
+                *) react confused; reply "Usage: \`@TonyD365-Agent /remind 3d\` or \`@TonyD365-Agent /remind 12h\` (up to 30 days), optionally followed by a note."; exit 0 ;;
               esac
               [ "$secs" -le $((30 * 86400)) ] || { react confused; reply "Reminders go up to 30 days."; exit 0; }
               at=$(( $(date -u +%s) + secs ))
@@ -152,7 +154,7 @@ jobs:
               ;;
             /label|/unlabel)
               maintainer_only
-              [ -n "$rest" ] || { reply "Usage: \`$cmd name\` (several names separated by spaces or commas)."; exit 0; }
+              [ -n "$rest" ] || { reply "Usage: \`@TonyD365-Agent $cmd name\` (several names separated by spaces or commas)."; exit 0; }
               done_list=""
               # Split on spaces and commas without expanding * or ? against the runner's files.
               IFS=', ' read -ra names <<<"$rest"

@@ -5,6 +5,8 @@ export const SERVER = "https://github.com";
 export const BOT = "TonyD365-Agent";
 export const PHRASE = "I agree to the lanpair contribution terms";
 export const DECLINE = "I do not agree to the lanpair contribution terms";
+export const REPLY = `@${BOT} ${PHRASE}`;
+export const DECLINE_REPLY = `@${BOT} ${DECLINE}`;
 const EXEMPT = new Set([
   "TonyD365",
   BOT,
@@ -105,7 +107,7 @@ export function aggregate(s: State): { state: "pending" | "failure" | "success";
   if (s.waiting.length) r = { state: "pending", description: "Workflows wait for the maintainer's approval to run" };
   else if (total === 0 || running) r = { state: "pending", description: "Checks are running" };
   else if (failed) r = { state: "failure", description: `${failed} check(s) failed` };
-  else if (internal) r = { state: "failure", description: `${internal} check(s) cancelled: comment /retest` };
+  else if (internal) r = { state: "failure", description: `${internal} check(s) cancelled: comment @TonyD365-Agent /retest` };
   else if (noTerms) r = { state: "failure", description: "Contribution terms not agreed yet" };
   else r = { state: "success", description: "Every check passed" };
   if (r.state === "pending" && noTerms) r.description += "; terms not agreed yet";
@@ -172,18 +174,18 @@ export function renderStatus(s: State, labels: string[], now: Date): string {
   if (s.conflict) {
     out.push("", "**Merge conflict:** this pull request and `main` change the same lines, so it cannot be merged (auto-merge waits). Bring `main` into your branch, fix the conflicting files, and push: `git fetch origin && git merge origin/main`, or use **Resolve conflicts** on this page. [How to resolve a merge conflict](https://docs.github.com/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-on-github)");
   }
-  if (c.internal) out.push("", `**Internal error:** ${c.internal} check(s) were cancelled or could not start, which is usually GitHub, not this change. Comment \`/retest\` to run them again.`);
-  if (noTerms) out.push("", `**Contribution terms:** please read the terms in the comment above and, if you agree, reply with a comment that says exactly \`${PHRASE}\`. Nothing can be merged before that.`);
+  if (c.internal) out.push("", `**Internal error:** ${c.internal} check(s) were cancelled or could not start, which is usually GitHub, not this change. Comment \`@TonyD365-Agent /retest\` to run them again.`);
+  if (noTerms) out.push("", `**Contribution terms:** please read the terms in the comment above and, if you agree, reply with a comment that says exactly \`${REPLY}\`. Nothing can be merged before that.`);
   if (labels.length) out.push("", `**Labels:** ${labels.join(", ")}`);
   out.push("", "**Next**");
   if (s.draft) out.push("- This is a draft: mark it ready for review when it is done.");
   else if (s.review === "CHANGES_REQUESTED") out.push("- Make the changes asked for in the review and push them.");
   else if (s.conflict) out.push("- Resolve the merge conflict with `main` (see above) and push.");
-  else if (noTerms) out.push(`- Reply \`${PHRASE}\` to agree to the contribution terms (see above).`);
+  else if (noTerms) out.push(`- Reply \`${REPLY}\` to agree to the contribution terms (see above).`);
   else if (s.waiting.length) out.push("- The maintainer approves the waiting workflows; then the checks run.");
   else if (c.failed) out.push("- Fix the failures above and push; the checks run again by themselves.");
   else if (c.running) out.push("- Wait for the running checks; this comment updates when they finish.");
-  else if (c.internal) out.push("- Comment `/retest` to run the cancelled checks again.");
+  else if (c.internal) out.push("- Comment `@TonyD365-Agent /retest` to run the cancelled checks again.");
   if (s.review === "APPROVED") out.push("- Approved by the maintainer: it merges by itself once every check passes (auto-merge is on).");
   else if (s.review === "CHANGES_REQUESTED") out.push("- The maintainer asked for changes: see the review.");
   else out.push("- It needs the maintainer's approval before it can be merged.");
@@ -196,8 +198,19 @@ export function isExempt(author: string): boolean {
   return EXEMPT.has(author);
 }
 
+// What a comment says to the bot, or null when it does not start by mentioning the bot.
+export function addressed(body: string): string | null {
+  const start = body.trimStart();
+  const mention = `@${BOT}`;
+  if (start.slice(0, mention.length).toLowerCase() !== mention.toLowerCase()) return null;
+  const rest = start.slice(mention.length);
+  return rest === "" || /^[\s,:]/.test(rest) ? rest.replace(/^[\s,:]+/, "") : null;
+}
+
 export function termsReply(body: string): "agreed" | "declined" | null {
-  const said = body.replaceAll("\r", "").replaceAll("’", "'").toLowerCase().trim().replace(/\.$/, "");
+  const text = addressed(body);
+  if (text === null) return null;
+  const said = text.replaceAll("\r", "").replaceAll("’", "'").toLowerCase().trim().replace(/\.$/, "");
   if (said === PHRASE.toLowerCase()) return "agreed";
   if (said === DECLINE.toLowerCase() || said === "i don't agree to the lanpair contribution terms") return "declined";
   return null;

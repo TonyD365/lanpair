@@ -45,9 +45,13 @@ Deno.test("the finished suite counts as completed", () => {
   eq(latestChecks([c], 5, "success")[0].status, "completed");
 });
 Deno.test("terms replies are exact", () => {
-  eq(termsReply(" I agree to the lanpair contribution terms. "), "agreed");
-  eq(termsReply("I don’t agree to the lanpair contribution terms"), "declined");
-  eq(termsReply("I agree to the lanpair contribution terms, but"), null);
+  eq(termsReply(" @TonyD365-Agent I agree to the lanpair contribution terms. "), "agreed");
+  eq(termsReply("@tonyd365-agent, I agree to the lanpair contribution terms"), "agreed");
+  eq(termsReply("@TonyD365-Agent I don’t agree to the lanpair contribution terms"), "declined");
+  eq(termsReply("@TonyD365-Agent I agree to the lanpair contribution terms, but"), null);
+  eq(termsReply("I agree to the lanpair contribution terms"), null);
+  eq(termsReply("@TonyD365-Agent2 I agree to the lanpair contribution terms"), null);
+  eq(termsReply("Thanks @TonyD365-Agent I agree to the lanpair contribution terms"), null);
 });
 Deno.test("the latest ledger entry decides", () => {
   const lines = ["<!-- terms:agreed:id=9:a -->", "<!-- terms:declined:id=8:b -->", "<!-- terms:declined:id=9:renamed -->"];

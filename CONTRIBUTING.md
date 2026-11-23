@@ -33,8 +33,9 @@ the protocol.
 The bot labels a new issue by what it is about (area and system), and asks for the version and
 system when a bug report has none (`needs-info`, gone once they are added). When a pull request
 that says `Fixes #12` is merged, #12 hears about it (`fixed-in-next-release`), and again with the
-version once that is released. In an issue, `/close` and `/reopen` (whoever opened it, or a
-maintainer), `/label` and `/unlabel` (maintainers) and `/help` work as on pull requests.
+version once that is released. In an issue, start a comment
+with `@TonyD365-Agent`, then `/close` or `/reopen` (whoever opened it, or a maintainer), `/label`
+or `/unlabel` (maintainers), or `/help`. They work as on pull requests.
 
 ## Before you open a pull request
 
@@ -48,7 +49,8 @@ CI runs the same checks on macOS, Windows and Linux.
 
 ### The checks on a pull request
 
-**Commands** (at the start of a comment on the pull request):
+**Commands:** start a comment with `@TonyD365-Agent`, then the command, for example
+`@TonyD365-Agent /retest`. The bot ignores comments that do not start with the mention.
 
 - `/retest` re-runs the checks that failed or were cancelled; `/ready` marks a draft ready for
   review; `/close` and `/reopen`; `/update` merges `main` into your branch (you or a
@@ -96,7 +98,7 @@ A few conventions:
 On your first pull request the bot posts these terms as a comment. Reply with a comment that
 says exactly
 
-    I agree to the lanpair contribution terms
+    @TonyD365-Agent I agree to the lanpair contribution terms
 
 and the check called **Contribution terms** turns green (it stays red until then). By replying
 you agree that:
@@ -113,5 +115,5 @@ you agree that:
 
 The maintainer and the project's bots are not asked. Your answer is recorded (in an issue the
 bot keeps), so once you have agreed, your later pull requests count as agreed too, until you
-withdraw by replying `I do not agree to the lanpair contribution terms`. A pull request whose
+withdraw by replying `@TonyD365-Agent I do not agree to the lanpair contribution terms`. A pull request whose
 author has not agreed is labelled `Needs-Terms-Agreement`, and `Terms-Declined` after a no.
