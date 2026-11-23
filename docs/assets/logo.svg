@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 10 520 200" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">lanpair</title>
+  <style>
+    .ink { stroke: #0f172a; }
+    .dot { fill: #10b981; }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #f1f5f9; } }
+  </style>
+  <defs>
+    <clipPath id="top"><rect x="316" y="66" width="38" height="33"/></clipPath>
+    <clipPath id="bottom"><rect x="316" y="121" width="38" height="33"/></clipPath>
+    <mask id="under-a" maskUnits="userSpaceOnUse" x="0" y="0" width="520" height="220">
+      <rect width="520" height="220" fill="#fff"/>
+      <circle cx="365" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#top)"/>
+    </mask>
+    <mask id="under-p" maskUnits="userSpaceOnUse" x="0" y="0" width="520" height="220">
+      <rect width="520" height="220" fill="#fff"/>
+      <circle cx="305" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#bottom)"/>
+    </mask>
+  </defs>
+  <g fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path class="ink" d="M20 30V150"/>
+    <circle class="ink" cx="85" cy="110" r="40"/>
+    <path class="ink" d="M125 70V150"/>
+    <path class="ink" d="M160 70V150M160 105a35 35 0 0 1 70 0V150"/>
+    <path d="M265 70V195" stroke="#0ea5e9"/>
+    <circle cx="305" cy="110" r="40" stroke="#0ea5e9" mask="url(#under-a)"/>
+    <circle cx="365" cy="110" r="40" stroke="#10b981" mask="url(#under-p)"/>
+    <path d="M405 70V150" stroke="#10b981"/>
+    <path class="ink" d="M440 74V150"/>
+    <path class="ink" d="M475 70V150M475 105a35 35 0 0 1 35-35"/>
+  </g>
+  <circle class="dot" cx="440" cy="38" r="13"/>
+</svg>

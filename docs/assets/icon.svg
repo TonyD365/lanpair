@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="lanpair">
+  <defs>
+    <clipPath id="top"><rect x="316" y="66" width="38" height="33"/></clipPath>
+    <clipPath id="bottom"><rect x="316" y="121" width="38" height="33"/></clipPath>
+    <mask id="under-a" maskUnits="userSpaceOnUse" x="200" y="0" width="240" height="240">
+      <rect x="200" width="240" height="240" fill="#fff"/>
+      <circle cx="365" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#top)"/>
+    </mask>
+    <mask id="under-p" maskUnits="userSpaceOnUse" x="200" y="0" width="240" height="240">
+      <rect x="200" width="240" height="240" fill="#fff"/>
+      <circle cx="305" cy="110" r="40" fill="none" stroke="#000" stroke-width="31" clip-path="url(#bottom)"/>
+    </mask>
+  </defs>
+  <rect width="240" height="240" rx="52" fill="#0f172a"/>
+  <g transform="translate(-215 -12)" fill="none" stroke-width="20" stroke-linecap="round">
+    <path d="M265 70V195" stroke="#38bdf8"/>
+    <circle cx="305" cy="110" r="40" stroke="#38bdf8" mask="url(#under-a)"/>
+    <circle cx="365" cy="110" r="40" stroke="#34d399" mask="url(#under-p)"/>
+    <path d="M405 70V150" stroke="#34d399"/>
+  </g>
+</svg>
