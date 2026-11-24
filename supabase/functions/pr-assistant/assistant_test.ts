@@ -31,10 +31,11 @@ function world(over: Record<string, unknown> = {}) {
     }
     if (p === "/graphql") {
       if (body.query.includes("enablePullRequestAutoMerge")) { w.pr.auto = true; w.writes++; return json({ data: {} }); }
+      if (body.query.includes("mergePullRequest")) { w.merged = true; w.writes++; return json({ data: {} }); }
       if (body.query.includes("disablePullRequestAutoMerge")) { w.pr.auto = false; w.writes++; return json({ data: {} }); }
       return json({ data: { repository: { pullRequest: {
         id: w.pr.id, state: w.pr.state, isDraft: w.pr.draft, reviewDecision: w.pr.review,
-        mergeable: w.pr.mergeable, headRefOid: w.pr.head,
+        mergeable: w.pr.mergeable, mergeStateStatus: w.pr.mergeState ?? "BLOCKED", headRefOid: w.pr.head,
         labels: { nodes: w.pr.labels.map((name: string) => ({ name })) },
         autoMergeRequest: w.pr.auto ? { enabledAt: "x" } : null,
       } } } });
@@ -204,6 +205,20 @@ Deno.test("approval turns auto-merge on; requested changes turn it off", async (
   await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
   eq(w.pr.auto, false, "off");
   ok(w.pr.labels.includes("Changes-Requested"), "label");
+});
+
+Deno.test("approved, all green and mergeable now: merged at once", async () => {
+  const w = world({ author: "TonyD365", review: "APPROVED", mergeState: "CLEAN" });
+  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  eq(w.merged, true, "merged");
+});
+
+Deno.test("approved but checks still running: not merged yet", async () => {
+  const w = world({ author: "TonyD365", review: "APPROVED", mergeState: "CLEAN" });
+  w.checks = [{ ...w.checks[0], status: "in_progress", conclusion: null }];
+  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  eq(w.merged, undefined, "merged");
+  eq(w.pr.auto, true, "auto-merge on");
 });
 
 Deno.test("a draft never gets auto-merge", async () => {
