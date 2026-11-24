@@ -97,7 +97,16 @@ class Writer {
     return this.send("POST", `/repos/${REPO}/issues/${this.number}/comments`, { body });
   }
 
-  async autoMerge(on: boolean, id: string, enabled: boolean) {
+  async autoMerge(on: boolean, id: string, enabled: boolean, clean = false) {
+    // GitHub refuses auto-merge for a pull request that can already merge: merge it now.
+    if (on && clean) {
+      if (!this.live) return console.log(`shadow pr=${this.number} merge now`);
+      await graphql(
+        "mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id,mergeMethod:MERGE}){clientMutationId}}",
+        { id },
+      ).catch((e) => console.error(`merge pr=${this.number}: ${e}`));
+      return;
+    }
     if (on === enabled) return;
     if (!this.live) return console.log(`shadow pr=${this.number} auto-merge=${on}`);
     const mutation = on
@@ -108,7 +117,7 @@ class Writer {
 }
 
 const PR_QUERY = `query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p){
-  id state isDraft reviewDecision mergeable headRefOid
+  id state isDraft reviewDecision mergeable mergeStateStatus headRefOid
   labels(first:50){nodes{name}} autoMergeRequest{enabledAt}}}}`;
 
 async function pullRequest(number: number) {
@@ -251,7 +260,12 @@ export async function refresh(number: number, doneSuite = 0, doneConclusion = ""
     context: "lanpair checks",
     target_url: `${SERVER}/${REPO}/pull/${number}`,
   });
-  await w.autoMerge(state.review === "APPROVED" && !state.draft, pr.id, pr.autoMergeRequest !== null);
+  await w.autoMerge(
+    state.review === "APPROVED" && !state.draft,
+    pr.id,
+    pr.autoMergeRequest !== null,
+    result.state === "success" && pr.mergeStateStatus === "CLEAN",
+  );
   const shown = [...have.filter((l) => !(l in COLOURS)), ...want];
   await writeStatusComment(w, renderStatus(state, shown, new Date()), marker(state));
   console.log(`pr=${number} live=${w.live} result=${result.state} labels=${want.join(",")}`);
