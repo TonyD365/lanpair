@@ -26,6 +26,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.scripts]
+lanpair = "lanpair.cli:main"
+
 [project.optional-dependencies]
 keyring = ["keyring>=25"]
 discovery = ["zeroconf>=0.136"]

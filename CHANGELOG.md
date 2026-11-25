@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A `lanpair` command (also `python -m lanpair`): `host`, `join`, `send`, `devices` and
+  `forget`, to try pairing and messaging between two machines without writing code. Text
+  from the network is printed without terminal control sequences.
+
 ## 1.4.1 (2026-11-23)
 
 - Fixed: a file or socket error while handling a UDP message, such as a locked state file

@@ -97,6 +97,19 @@ restarts. Behind it:
 - **Every message** encrypted, signed, bound to its recipient and replay-checked before
   `messages()` hands it to you.
 
+### Try it from the terminal
+
+No code needed: run one command on each machine.
+
+```bash
+lanpair host                 # machine 1: shows a pairing code and a QR code
+lanpair join 'lanpair://…'   # machine 2: the code from machine 1, once
+```
+
+Both then print what arrives, and each line you type is sent, signed and encrypted.
+`lanpair send "text"` sends one message from a paired device and exits (add `--json` for
+JSON), and `lanpair devices` and `lanpair forget NAME` list and unpair devices.
+
 ### When a message must arrive
 
 ```python
