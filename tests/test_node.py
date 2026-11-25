@@ -300,6 +300,27 @@ def test_saved_port_taken_falls_back_to_a_free_one(tmp_path):
         squatter.close()
 
 
+def test_starts_when_the_tcp_side_of_every_free_udp_port_is_busy(tmp_path, monkeypatch):
+    """Windows: a free UDP port can still be held on the TCP side by closed connections."""
+    import errno
+    import socket
+
+    real = socket.socket
+
+    class TcpSideBusy(real):
+        def bind(self, address):
+            if self.type == socket.SOCK_STREAM and address[1] != 0:
+                raise OSError(errno.EADDRINUSE, "address in use (simulated)")
+            super().bind(address)
+
+    monkeypatch.setattr(socket, "socket", TcpSideBusy)
+    host = make(Host, "desk", tmp_path)
+    try:
+        assert host._sock.getsockname()[1] == host._tcp.getsockname()[1] == host.port
+    finally:
+        host.close()
+
+
 def test_port_kept_after_tcp_traffic(pair, tmp_path):
     host, dev = pair
     dev.send("x" * 20_000)  # over TCP: the host closes the connection (TIME_WAIT on its port)

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: on Windows, `Host` and `Device` could fail to start with "no port free for both UDP
+  and TCP" when the TCP side of free UDP ports was still held by closed connections. They
+  now also try letting the system pick the TCP port first, and try more often.
+
 ## 1.5.0rc1 (2026-11-25)
 
 A release candidate: install with `pip install --pre "lanpair[all]"`.
