@@ -48,6 +48,7 @@ MAX_MESSAGE = DEFAULT_MAX_SIZE  # bytes of envelope; what a receiver accepts by 
 _POLL = 0.25  # seconds; how quickly the receive thread notices close()
 _TCP_TIMEOUT = 5.0  # seconds a TCP connection may take to deliver its message
 _TCP_MAX_CONNECTIONS = 16  # handled at once; more are closed right away
+_BIND_ATTEMPTS = 64  # tries to find one port free for both UDP and TCP
 _LEN = struct.Struct(">I")  # TCP frame: 4-byte big-endian length, then the message
 SESSION_ROTATE = 600.0  # seconds between new session keys (forward secrecy)
 _SESSION_KEEP = 2  # session keys kept: the current one and the one before it
@@ -268,7 +269,7 @@ class _Node:
                 wanted = saved if isinstance(saved, int) and 0 < saved < 65536 else 0
             except (FileNotFoundError, ValueError, AttributeError):
                 wanted = 0
-        for attempt in range(20):
+        for attempt in range(_BIND_ATTEMPTS):
             udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             if os.name != "nt":
@@ -277,8 +278,14 @@ class _Node:
                 # Windows this option would let others take the port, and isn't needed.)
                 tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                udp.bind((bind, wanted))
-                tcp.bind((bind, udp.getsockname()[1]))
+                if wanted == 0 and attempt % 2:
+                    # Every other try, let the system pick the TCP port first: on Windows a
+                    # free UDP port is often still held on the TCP side by closed connections.
+                    tcp.bind((bind, 0))
+                    udp.bind((bind, tcp.getsockname()[1]))
+                else:
+                    udp.bind((bind, wanted))
+                    tcp.bind((bind, udp.getsockname()[1]))
                 tcp.listen(_TCP_MAX_CONNECTIONS)
             except OSError:
                 udp.close()
