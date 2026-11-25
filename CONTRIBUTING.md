@@ -73,12 +73,13 @@ failure usually means, and what happens next. Besides the tests on three systems
 - **Labels** are added from the files you change (`crypto`, `discovery`, `keystore`, ...).
 - A pull request needs the maintainer's approval, and every check passing, before it is merged.
   The bot sums the checks up in one status, **lanpair checks**; once the maintainer approves, it
-  turns on auto-merge, so the pull request merges by itself when that status is green.
+  merges the pull request as soon as that status is green (at once if it already is).
 - The bot also keeps **status labels** up to date: `Checks-Running`, `Checks-Passed`,
   `Checks-Failed`, `Internal-Error` (a check was cancelled or timed out, usually not the
   change's fault), `Merge-Conflict` (bring `main` into your branch, resolve, push; nothing is
   merged until then), `Needs-Author-Action`, `Changes-Requested` (the maintainer's review asks
-  for changes), `Needs-Terms-Agreement`, `Needs-Review` and `Maintainer-Approved`. When the
+  for changes), `Needs-Terms-Agreement`, `Needs-Review` and `Maintainer-Approved`.
+  `Keep-Branch` (from `/keep-branch`) is yours to set: the bot never removes it. When the
   status changes it posts a new comment, so the newest status is always the latest comment.
 
 A few conventions:
@@ -88,7 +89,9 @@ A few conventions:
 - Secure by default: an API that can be misused into accepting a forged or replayed message
   needs a very good reason. Rejected input never reaches application code.
 - Never put key material in logs, `repr`, exception messages or plain files.
-- Use well-reviewed primitives (`cryptography`); do not implement cryptography by hand.
+- Use well-reviewed primitives (`cryptography`); do not implement cryptography by hand. The one
+  protocol built on them here, CPace (`cpace.py`), follows its published specification and is
+  tested against its official test vectors; any change to it needs the same.
 - Tests must not need the network. Every check that rejects a message has a test that shows it
   being rejected.
 - New behaviour comes with tests in the same pull request, and a fixed bug with a test that
