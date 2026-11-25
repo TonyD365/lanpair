@@ -55,6 +55,8 @@ CI runs the same checks on macOS, Windows and Linux.
 - `/retest` re-runs the checks that failed or were cancelled; `/ready` marks a draft ready for
   review; `/close` and `/reopen`; `/update` merges `main` into your branch (you or a
   maintainer; on a fork, a maintainer).
+- After merging, the bot deletes the pull request's branch (not a fork's). `/keep-branch`
+  keeps it and `/delete-branch` undoes that (you or a maintainer).
 - `/remind 3d` (or `12h`, up to `30d`, optionally with a note) has the bot remind you there then.
 - `/label` and `/unlabel` add or remove labels (maintainers: the owner and collaborators).
 - `/help` lists them.

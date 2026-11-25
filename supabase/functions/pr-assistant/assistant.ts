@@ -6,13 +6,14 @@ import {
   type Check,
   COLOURS,
   counts,
+  DECLINE_REPLY,
   isExempt,
+  KEEP_BRANCH,
   latestChecks,
   ledgerState,
   marker,
-  DECLINE_REPLY,
-  REPLY,
   renderStatus,
+  REPLY,
   REPO,
   SERVER,
   type State,
@@ -112,12 +113,15 @@ class Writer {
     const mutation = on
       ? "mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:MERGE}){clientMutationId}}"
       : "mutation($id:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}";
-    await graphql(mutation, { id }).catch((e) => console.error(`auto-merge pr=${this.number}: ${e}`));
+    await graphql(mutation, { id }).catch((e) =>
+      console.error(`auto-merge pr=${this.number}: ${e}`)
+    );
   }
 }
 
-const PR_QUERY = `query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p){
-  id state isDraft reviewDecision mergeable mergeStateStatus headRefOid
+const PR_QUERY =
+  `query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p){
+  id state isDraft reviewDecision mergeable mergeStateStatus headRefOid headRefName isCrossRepository
   labels(first:50){nodes{name}} autoMergeRequest{enabledAt}}}}`;
 
 async function pullRequest(number: number) {
@@ -178,7 +182,10 @@ async function syncLabels(w: Writer, have: string[], want: string[]) {
       await w.send("POST", `/repos/${REPO}/labels`, { name: label, color: COLOURS[label] });
       await w.send("POST", `/repos/${REPO}/issues/${w.number}/labels`, { labels: [label] });
     } else if (!wanted && have.includes(label)) {
-      await w.send("DELETE", `/repos/${REPO}/issues/${w.number}/labels/${encodeURIComponent(label)}`);
+      await w.send(
+        "DELETE",
+        `/repos/${REPO}/issues/${w.number}/labels/${encodeURIComponent(label)}`,
+      );
     }
   }
 }
@@ -213,13 +220,19 @@ export async function refresh(number: number, doneSuite = 0, doneConclusion = ""
   const author: string = rest.user.login;
   const checkRuns = await get(`/repos/${REPO}/commits/${head}/check-runs?per_page=100`);
   const checks: Check[] = latestChecks(checkRuns?.check_runs ?? [], doneSuite, doneConclusion);
-  const prRuns = await get(`/repos/${REPO}/actions/runs?head_sha=${head}&event=pull_request&per_page=100`);
+  const prRuns = await get(
+    `/repos/${REPO}/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
+  );
   // deno-lint-ignore no-explicit-any
   const busy = (prRuns?.workflow_runs ?? []).filter((r: any) => r.status !== "completed").length;
   const allRuns = await get(`/repos/${REPO}/actions/runs?head_sha=${head}&per_page=100`);
   const waiting: string[] = [
     // deno-lint-ignore no-explicit-any
-    ...new Set<string>((allRuns?.workflow_runs ?? []).filter((r: any) => r.conclusion === "action_required").map((r: any) => r.name)),
+    ...new Set<string>(
+      (allRuns?.workflow_runs ?? []).filter((r: any) => r.conclusion === "action_required").map((
+        r: any,
+      ) => r.name),
+    ),
   ];
   const terms = await termsFor(author, rest.user.id);
   const issueComments = await getAll(`/repos/${REPO}/issues/${number}/comments`);
@@ -228,7 +241,9 @@ export async function refresh(number: number, doneSuite = 0, doneConclusion = ""
   await w.send("POST", `/repos/${REPO}/statuses/${head}`, {
     state: agreed ? "success" : "failure",
     context: "Contribution terms",
-    description: agreed ? (terms === "exempt" ? "Not needed for the maintainer" : "Agreed") : `Reply: ${REPLY}`,
+    description: agreed
+      ? (terms === "exempt" ? "Not needed for the maintainer" : "Agreed")
+      : `Reply: ${REPLY}`,
     target_url: `${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms`,
   });
 
@@ -243,6 +258,8 @@ export async function refresh(number: number, doneSuite = 0, doneConclusion = ""
     busy: counts({ checks, busy: 0 } as unknown as State).running ? 0 : busy,
     waiting,
     terms,
+    branch: pr.isCrossRepository ? undefined : pr.headRefName,
+    keepBranch: pr.labels.nodes.some((l: { name: string }) => l.name === KEEP_BRANCH),
   };
   if (state.review === "CHANGES_REQUESTED") {
     const reviews = await getAll(`/repos/${REPO}/pulls/${number}/reviews`);
@@ -287,7 +304,8 @@ export async function answerTerms(number: number, c: {
     const issue = await w.send("POST", `/repos/${REPO}/issues`, {
       title: "Contribution terms: agreements (kept by the bot)",
       labels: ["terms-ledger"],
-      body: `This issue is the record of who agreed to the [contribution terms](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms). The bot keeps it; it is closed and locked so it stays out of the way.\n\n- **To agree**, reply on your pull request: \`${REPLY}\`\n- **To withdraw**, reply on any of your pull requests: \`${DECLINE_REPLY}\`\n\nOne entry per answer, newest last. A person's latest entry counts; people are matched by their account number, so a renamed account keeps its agreement.`,
+      body:
+        `This issue is the record of who agreed to the [contribution terms](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#contribution-terms). The bot keeps it; it is closed and locked so it stays out of the way.\n\n- **To agree**, reply on your pull request: \`${REPLY}\`\n- **To withdraw**, reply on any of your pull requests: \`${DECLINE_REPLY}\`\n\nOne entry per answer, newest last. A person's latest entry counts; people are matched by their account number, so a renamed account keeps its agreement.`,
     }) as { number: number };
     ledger = issue.number;
     await w.send("PUT", `/repos/${REPO}/issues/${ledger}/lock`, { lock_reason: "resolved" });
@@ -296,47 +314,60 @@ export async function answerTerms(number: number, c: {
   const when = new Date().toISOString().slice(0, 16).replace("T", " ");
   const mark = what === "agreed" ? "✅ **Agreed**" : "❌ **Withdrawn**";
   await w.send("POST", `/repos/${REPO}/issues/${ledger}/comments`, {
-    body: `<!-- terms:${what}:id=${c.user.id}:${c.user.login} -->\n${mark} · \`${c.user.login}\` (account ${c.user.id}) · PR #${number} · [their comment](${c.html_url}) · ${when} UTC`,
+    body:
+      `<!-- terms:${what}:id=${c.user.id}:${c.user.login} -->\n${mark} · \`${c.user.login}\` (account ${c.user.id}) · PR #${number} · [their comment](${c.html_url}) · ${when} UTC`,
   });
-  await w.comment(what === "agreed"
-    ? `<!-- lanpair-terms-ok -->\n✅ Thank you, @${c.user.login}: your agreement to the contribution terms is recorded. It covers your later pull requests too, until you reply \`${DECLINE_REPLY}\`.`
-    : `<!-- lanpair-terms-declined -->\nNoted, @${c.user.login}: you do not agree to the contribution terms, so this pull request cannot be merged. If you change your mind, reply \`${REPLY}\`.`);
+  await w.comment(
+    what === "agreed"
+      ? `<!-- lanpair-terms-ok -->\n✅ Thank you, @${c.user.login}: your agreement to the contribution terms is recorded. It covers your later pull requests too, until you reply \`${DECLINE_REPLY}\`.`
+      : `<!-- lanpair-terms-declined -->\nNoted, @${c.user.login}: you do not agree to the contribution terms, so this pull request cannot be merged. If you change your mind, reply \`${REPLY}\`.`,
+  );
 }
 
 async function once(number: number, tag: string, body: string) {
   const comments = await getAll(`/repos/${REPO}/issues/${number}/comments`);
-  if (!comments.some((c) => c.body.startsWith(tag))) await new Writer(number).comment(`${tag}\n${body}`);
+  if (!comments.some((c) => c.body.startsWith(tag))) {
+    await new Writer(number).comment(`${tag}\n${body}`);
+  }
 }
 
 export function welcome(number: number, author: string) {
   const base = `${SERVER}/${REPO}/blob/main`;
-  return once(number, "<!-- lanpair-welcome -->", [
-    `### 👋 Welcome, @${author}, and thank you for your first pull request to lanpair!`,
-    "",
-    "A few things that help it go in quickly:",
-    "",
-    "- **Check it locally** before pushing (the same as CI, all without opening a window):",
-    "  ```bash",
-    '  pip install -e ".[dev]"',
-    "  ruff check . && ruff format --check .",
-    "  mypy src",
-    "  pytest",
-    "  ```",
-    `- **The rules:** English in the code, comments and commits; tests need no network; one topic per pull request; changes to keys, signatures or pairing explain their security impact. See [CONTRIBUTING.md](${base}/CONTRIBUTING.md) and the [code of conduct](${base}/CODE_OF_CONDUCT.md).`,
-    "- **Contribution terms:** I will post them in a moment; reply to agree, once, and it counts for your later pull requests too.",
-    "- **The checks** run after a maintainer approves running them for a first-time contributor. My status comment below says what passed, what failed and what usually fixes it. Comment `@TonyD365-Agent /help` for the commands, e.g. `@TonyD365-Agent /retest`.",
-    "- **Questions** are welcome right here, in English or Chinese.",
-  ].join("\n"));
+  return once(
+    number,
+    "<!-- lanpair-welcome -->",
+    [
+      `### 👋 Welcome, @${author}, and thank you for your first pull request to lanpair!`,
+      "",
+      "A few things that help it go in quickly:",
+      "",
+      "- **Check it locally** before pushing (the same as CI, all without opening a window):",
+      "  ```bash",
+      '  pip install -e ".[dev]"',
+      "  ruff check . && ruff format --check .",
+      "  mypy src",
+      "  pytest",
+      "  ```",
+      `- **The rules:** English in the code, comments and commits; tests need no network; one topic per pull request; changes to keys, signatures or pairing explain their security impact. See [CONTRIBUTING.md](${base}/CONTRIBUTING.md) and the [code of conduct](${base}/CODE_OF_CONDUCT.md).`,
+      "- **Contribution terms:** I will post them in a moment; reply to agree, once, and it counts for your later pull requests too.",
+      "- **The checks** run after a maintainer approves running them for a first-time contributor. My status comment below says what passed, what failed and what usually fixes it. Comment `@TonyD365-Agent /help` for the commands, e.g. `@TonyD365-Agent /retest`.",
+      "- **Questions** are welcome right here, in English or Chinese.",
+    ].join("\n"),
+  );
 }
 
 export function thanks(number: number, author: string, type: string) {
   const who = type === "Bot" ? author : `@${author}`;
-  return once(number, "<!-- lanpair-thanks -->", [
-    `### 🎉 Merged! Thank you for your contribution, ${who}!`,
-    "",
-    "Your change is now on `main` and will ship in the next lanpair release.",
-    "Ideas, bug reports and more pull requests are always welcome. 🔐",
-  ].join("\n"));
+  return once(
+    number,
+    "<!-- lanpair-thanks -->",
+    [
+      `### 🎉 Merged! Thank you for your contribution, ${who}!`,
+      "",
+      "Your change is now on `main` and will ship in the next lanpair release.",
+      "Ideas, bug reports and more pull requests are always welcome. 🔐",
+    ].join("\n"),
+  );
 }
 
 export async function openNumbers(sha?: string): Promise<number[]> {

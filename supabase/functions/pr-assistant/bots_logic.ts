@@ -51,7 +51,9 @@ export function triageLabels(title: string, body: string): string[] {
 export function missingInfo(title: string, body: string): string[] {
   const text = `${title}\n${body}`.toLowerCase();
   const missing: string[] = [];
-  if (!/[0-9]+\.[0-9]+\.[0-9]+/.test(text)) missing.push("the **lanpair version** (`pip show lanpair`)");
+  if (!/[0-9]+\.[0-9]+\.[0-9]+/.test(text)) {
+    missing.push("the **lanpair version** (`pip show lanpair`)");
+  }
   if (!/windows|macos|mac os|apple silicon|intel|linux|ubuntu|debian|fedora|raspberry/.test(text)) {
     missing.push("your **system** (macOS, Windows or Linux, and which version)");
   }
@@ -59,17 +61,25 @@ export function missingInfo(title: string, body: string): string[] {
 }
 
 export function fixedIssues(title: string, body: string): number[] {
-  const found = `${title}\n${body}`.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#([0-9]+)/gi);
+  const found = `${title}\n${body}`.matchAll(
+    /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#([0-9]+)/gi,
+  );
   return [...new Set([...found].map((m) => Number(m[1])))].sort((a, b) => a - b);
 }
 
 export function fileLabels(files: string[]): string[] {
   const rules: [string, (f: string) => boolean][] = [
-    ["crypto", (f) => /^src\/lanpair\/(identity\.py|envelope\.py|pairing.*\.py|channel.*\.py)$/.test(f)],
+    [
+      "crypto",
+      (f) => /^src\/lanpair\/(identity\.py|envelope\.py|pairing.*\.py|channel.*\.py)$/.test(f),
+    ],
     ["discovery", (f) => /^src\/lanpair\/discovery.*\.py$/.test(f)],
     ["keystore", (f) => /^src\/lanpair\/keystore.*\.py$/.test(f)],
     ["ci", (f) => f.startsWith(".github/")],
-    ["documentation", (f) => /^[^/]+\.md$/.test(f) || f.startsWith("docs/") || f.startsWith("site/")],
+    [
+      "documentation",
+      (f) => /^[^/]+\.md$/.test(f) || f.startsWith("docs/") || f.startsWith("site/"),
+    ],
     ["dependencies", (f) => f === "pyproject.toml"],
     ["tests", (f) => f.startsWith("tests/")],
   ];

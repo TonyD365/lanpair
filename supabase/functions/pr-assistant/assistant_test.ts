@@ -11,13 +11,35 @@ const repository = { full_name: REPO };
 function world(over: Record<string, unknown> = {}) {
   const w: Any = {
     pr: {
-      number: 50, id: "PR_50", head: "abcdef1234567", author: "alice", authorId: 11,
-      state: "OPEN", draft: false, review: "REVIEW_REQUIRED", mergeable: "MERGEABLE",
-      labels: [], auto: false, ...over,
+      number: 50,
+      id: "PR_50",
+      head: "abcdef1234567",
+      author: "alice",
+      authorId: 11,
+      state: "OPEN",
+      draft: false,
+      review: "REVIEW_REQUIRED",
+      mergeable: "MERGEABLE",
+      labels: [],
+      auto: false,
+      ...over,
     },
-    comments: [], ledger: [], ledgerIssue: null as number | null, statuses: [],
-    checks: [{ name: "Tests", status: "completed", conclusion: "success", html_url: "u", started_at: "1", check_suite: { id: 1 } }],
-    runs: [], reviews: [], nextId: 100, writes: 0,
+    comments: [],
+    ledger: [],
+    ledgerIssue: null as number | null,
+    statuses: [],
+    checks: [{
+      name: "Tests",
+      status: "completed",
+      conclusion: "success",
+      html_url: "u",
+      started_at: "1",
+      check_suite: { id: 1 },
+    }],
+    runs: [],
+    reviews: [],
+    nextId: 100,
+    writes: 0,
   };
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
   globalThis.fetch = (async (input: string, init: RequestInit = {}) => {
@@ -27,33 +49,72 @@ function world(over: Record<string, unknown> = {}) {
     const p = url.pathname.replace(`/repos/${REPO}`, "");
     if (method !== "GET" && p !== "/graphql") w.writes++;
     if (url.hostname === "raw.githubusercontent.com") {
-      return new Response("## Contribution terms\nOn your first pull request\nyou agree that:\n- Term one\n## End\n");
+      return new Response(
+        "## Contribution terms\nOn your first pull request\nyou agree that:\n- Term one\n## End\n",
+      );
     }
     if (p === "/graphql") {
-      if (body.query.includes("enablePullRequestAutoMerge")) { w.pr.auto = true; w.writes++; return json({ data: {} }); }
-      if (body.query.includes("mergePullRequest")) { w.merged = true; w.writes++; return json({ data: {} }); }
-      if (body.query.includes("disablePullRequestAutoMerge")) { w.pr.auto = false; w.writes++; return json({ data: {} }); }
-      return json({ data: { repository: { pullRequest: {
-        id: w.pr.id, state: w.pr.state, isDraft: w.pr.draft, reviewDecision: w.pr.review,
-        mergeable: w.pr.mergeable, mergeStateStatus: w.pr.mergeState ?? "BLOCKED", headRefOid: w.pr.head,
-        labels: { nodes: w.pr.labels.map((name: string) => ({ name })) },
-        autoMergeRequest: w.pr.auto ? { enabledAt: "x" } : null,
-      } } } });
+      if (body.query.includes("enablePullRequestAutoMerge")) {
+        w.pr.auto = true;
+        w.writes++;
+        return json({ data: {} });
+      }
+      if (body.query.includes("mergePullRequest")) {
+        w.merged = true;
+        w.writes++;
+        return json({ data: {} });
+      }
+      if (body.query.includes("disablePullRequestAutoMerge")) {
+        w.pr.auto = false;
+        w.writes++;
+        return json({ data: {} });
+      }
+      return json({
+        data: {
+          repository: {
+            pullRequest: {
+              id: w.pr.id,
+              state: w.pr.state,
+              isDraft: w.pr.draft,
+              reviewDecision: w.pr.review,
+              mergeable: w.pr.mergeable,
+              mergeStateStatus: w.pr.mergeState ?? "BLOCKED",
+              headRefOid: w.pr.head,
+              labels: { nodes: w.pr.labels.map((name: string) => ({ name })) },
+              autoMergeRequest: w.pr.auto ? { enabledAt: "x" } : null,
+            },
+          },
+        },
+      });
     }
-    if (method === "GET" && p === "/pulls") return json(w.pr.state === "OPEN" ? [{ number: 50, head: { sha: w.pr.head } }] : []);
-    if (method === "GET" && p === "/pulls/50") return json({ user: { login: w.pr.author, id: w.pr.authorId } });
+    if (method === "GET" && p === "/pulls") {
+      return json(w.pr.state === "OPEN" ? [{ number: 50, head: { sha: w.pr.head } }] : []);
+    }
+    if (method === "GET" && p === "/pulls/50") {
+      return json({ user: { login: w.pr.author, id: w.pr.authorId } });
+    }
     if (method === "GET" && p === "/pulls/50/files") return json([]);
     if (method === "GET" && p === "/issues/50") return json({ labels: [] });
     if (method === "GET" && p === "/pulls/50/reviews") return json(w.reviews);
     if (method === "GET" && p.endsWith("/check-runs")) return json({ check_runs: w.checks });
     if (method === "GET" && p === "/actions/runs") return json({ workflow_runs: w.runs });
-    if (method === "GET" && p === "/issues") return json(w.ledgerIssue ? [{ number: w.ledgerIssue }] : []);
+    if (method === "GET" && p === "/issues") {
+      return json(w.ledgerIssue ? [{ number: w.ledgerIssue }] : []);
+    }
     if (method === "GET" && p === "/issues/50/comments") return json(w.comments);
     if (method === "GET" && p === `/issues/${w.ledgerIssue}/comments`) return json(w.ledger);
-    if (method === "POST" && p === "/labels") return json({}, w.pr.labels.includes(body.name) ? 422 : 201);
-    if (method === "POST" && p === "/issues/50/labels") { w.pr.labels.push(...body.labels); return json({}); }
+    if (method === "POST" && p === "/labels") {
+      return json({}, w.pr.labels.includes(body.name) ? 422 : 201);
+    }
+    if (method === "POST" && p === "/issues/50/labels") {
+      w.pr.labels.push(...body.labels);
+      return json({});
+    }
     let m = p.match(/^\/issues\/50\/labels\/(.+)$/);
-    if (method === "DELETE" && m) { w.pr.labels = w.pr.labels.filter((l: string) => l !== decodeURIComponent(m![1])); return json({}); }
+    if (method === "DELETE" && m) {
+      w.pr.labels = w.pr.labels.filter((l: string) => l !== decodeURIComponent(m![1]));
+      return json({});
+    }
     if (method === "POST" && p === "/issues/50/comments") {
       const c = { id: w.nextId++, body: body.body, user: { login: BOT } };
       w.comments.push(c);
@@ -62,36 +123,69 @@ function world(over: Record<string, unknown> = {}) {
     m = p.match(/^\/issues\/comments\/(\d+)$/);
     if (m) {
       const id = Number(m[1]);
-      if (method === "DELETE") { w.comments = w.comments.filter((c: Any) => c.id !== id); return new Response(null, { status: 204 }); }
-      if (method === "PATCH") { w.comments.find((c: Any) => c.id === id).body = body.body; return json({}); }
+      if (method === "DELETE") {
+        w.comments = w.comments.filter((c: Any) => c.id !== id);
+        return new Response(null, { status: 204 });
+      }
+      if (method === "PATCH") {
+        w.comments.find((c: Any) => c.id === id).body = body.body;
+        return json({});
+      }
     }
-    if (method === "POST" && p === "/issues") { w.ledgerIssue = 900; w.locked = false; return json({ number: 900 }, 201); }
-    if (method === "PUT" && p === "/issues/900/lock") { w.locked = true; return new Response(null, { status: 204 }); }
-    if (method === "PATCH" && p === "/issues/900") { w.closed = true; return json({}); }
+    if (method === "POST" && p === "/issues") {
+      w.ledgerIssue = 900;
+      w.locked = false;
+      return json({ number: 900 }, 201);
+    }
+    if (method === "PUT" && p === "/issues/900/lock") {
+      w.locked = true;
+      return new Response(null, { status: 204 });
+    }
+    if (method === "PATCH" && p === "/issues/900") {
+      w.closed = true;
+      return json({});
+    }
     if (method === "POST" && p === `/issues/${w.ledgerIssue}/comments`) {
       w.ledger.push({ body: body.body, user: { login: BOT } });
       return json({}, 201);
     }
-    if (method === "POST" && p.startsWith("/statuses/")) { w.statuses.push(body); return json({}, 201); }
+    if (method === "POST" && p.startsWith("/statuses/")) {
+      w.statuses.push(body);
+      return json({}, 201);
+    }
     throw new Error(`unexpected ${method} ${p}`);
   }) as typeof fetch;
   return w;
 }
 
-const status = (w: Any, context = "lanpair checks") => w.statuses.filter((s: Any) => s.context === context).at(-1)?.state;
-const assistantComments = (w: Any) => w.comments.filter((c: Any) => c.body.startsWith("<!-- lanpair-pr-assistant"));
+const status = (w: Any, context = "lanpair checks") =>
+  w.statuses.filter((s: Any) => s.context === context).at(-1)?.state;
+const assistantComments = (w: Any) =>
+  w.comments.filter((c: Any) => c.body.startsWith("<!-- lanpair-pr-assistant"));
 const has = (w: Any, tag: string) => w.comments.filter((c: Any) => c.body.startsWith(tag)).length;
 const pull = (w: Any, action: string, extra = {}) => ({
-  action, repository,
-  pull_request: { number: 50, merged: false, author_association: "FIRST_TIME_CONTRIBUTOR", user: { login: w.pr.author, id: w.pr.authorId, type: "User" }, ...extra },
+  action,
+  repository,
+  pull_request: {
+    number: 50,
+    merged: false,
+    author_association: "FIRST_TIME_CONTRIBUTOR",
+    user: { login: w.pr.author, id: w.pr.authorId, type: "User" },
+    ...extra,
+  },
 });
 const say = (w: Any, text: string, user = { login: w.pr.author, id: w.pr.authorId }) => ({
-  action: "created", repository,
+  action: "created",
+  repository,
   issue: { number: 50, pull_request: {}, user: { id: w.pr.authorId } },
   comment: { body: text, html_url: "c", user },
 });
-function ok(cond: unknown, what: string) { if (!cond) throw new Error(what); }
-function eq(a: unknown, b: unknown, what = "") { if (a !== b) throw new Error(`${what}: ${a} != ${b}`); }
+function ok(cond: unknown, what: string) {
+  if (!cond) throw new Error(what);
+}
+function eq(a: unknown, b: unknown, what = "") {
+  if (a !== b) throw new Error(`${what}: ${a} != ${b}`);
+}
 
 Deno.env.set("LIVE_PRS", "*");
 Deno.env.set("GITHUB_TOKEN", "test");
@@ -119,7 +213,10 @@ Deno.test("agree: ledger, green check; repeat is recorded once", async () => {
   eq(has(w, "<!-- lanpair-terms-ok"), 1, "reply");
   eq(status(w), "success");
   eq(status(w, "Contribution terms"), "success");
-  ok(w.pr.labels.includes("Terms-Agreed") && !w.pr.labels.includes("Needs-Terms-Agreement"), "labels");
+  ok(
+    w.pr.labels.includes("Terms-Agreed") && !w.pr.labels.includes("Needs-Terms-Agreement"),
+    "labels",
+  );
 });
 
 Deno.test("withdraw turns it red again", async () => {
@@ -185,7 +282,10 @@ Deno.test("running stays pending", async () => {
 Deno.test("merge conflict is explained and labelled", async () => {
   const w = world({ author: "TonyD365", mergeable: "CONFLICTING" });
   await route("pull_request", pull(w, "synchronize"));
-  ok(w.pr.labels.includes("Merge-Conflict") && w.pr.labels.includes("Needs-Author-Action"), "labels");
+  ok(
+    w.pr.labels.includes("Merge-Conflict") && w.pr.labels.includes("Needs-Author-Action"),
+    "labels",
+  );
   ok(assistantComments(w)[0].body.includes("**Merge conflict:**"), "text");
 });
 
@@ -197,26 +297,42 @@ Deno.test("a push to main finds new conflicts", async () => {
 
 Deno.test("approval turns auto-merge on; requested changes turn it off", async () => {
   const w = world({ author: "TonyD365", review: "APPROVED" });
-  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  await route("pull_request_review", {
+    action: "submitted",
+    repository,
+    pull_request: { number: 50 },
+  });
   eq(w.pr.auto, true, "on");
   ok(w.pr.labels.includes("Maintainer-Approved"), "label");
   w.pr.review = "CHANGES_REQUESTED";
   w.reviews = [{ state: "CHANGES_REQUESTED", user: { login: "TonyD365" }, html_url: "r" }];
-  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  await route("pull_request_review", {
+    action: "submitted",
+    repository,
+    pull_request: { number: 50 },
+  });
   eq(w.pr.auto, false, "off");
   ok(w.pr.labels.includes("Changes-Requested"), "label");
 });
 
 Deno.test("approved, all green and mergeable now: merged at once", async () => {
   const w = world({ author: "TonyD365", review: "APPROVED", mergeState: "CLEAN" });
-  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  await route("pull_request_review", {
+    action: "submitted",
+    repository,
+    pull_request: { number: 50 },
+  });
   eq(w.merged, true, "merged");
 });
 
 Deno.test("approved but checks still running: not merged yet", async () => {
   const w = world({ author: "TonyD365", review: "APPROVED", mergeState: "CLEAN" });
   w.checks = [{ ...w.checks[0], status: "in_progress", conclusion: null }];
-  await route("pull_request_review", { action: "submitted", repository, pull_request: { number: 50 } });
+  await route("pull_request_review", {
+    action: "submitted",
+    repository,
+    pull_request: { number: 50 },
+  });
   eq(w.merged, undefined, "merged");
   eq(w.pr.auto, true, "auto-merge on");
 });
@@ -234,7 +350,10 @@ Deno.test("merged: thanks once, bots without a mention", async () => {
   eq(has(w, "<!-- lanpair-thanks"), 1, "thanks");
   ok(w.comments[0].body.includes("@alice"), "mention");
   const b = world({ state: "MERGED", author: "dependabot[bot]" });
-  await route("pull_request", pull(b, "closed", { merged: true, user: { login: "dependabot[bot]", type: "Bot" } }));
+  await route(
+    "pull_request",
+    pull(b, "closed", { merged: true, user: { login: "dependabot[bot]", type: "Bot" } }),
+  );
   ok(!b.comments[0].body.includes("@dependabot"), "no mention");
 });
 
@@ -246,16 +365,27 @@ Deno.test("closed without merging gets no thanks", async () => {
 
 Deno.test("a finished workflow updates only the matching commit", async () => {
   const w = world({ author: "TonyD365" });
-  await route("workflow_run", { action: "completed", repository, workflow_run: { head_sha: "other", check_suite_id: 1, conclusion: "success" } });
+  await route("workflow_run", {
+    action: "completed",
+    repository,
+    workflow_run: { head_sha: "other", check_suite_id: 1, conclusion: "success" },
+  });
   eq(w.writes, 0, "other commit");
   w.checks = [{ ...w.checks[0], status: "in_progress", conclusion: null }];
-  await route("workflow_run", { action: "completed", repository, workflow_run: { head_sha: w.pr.head, check_suite_id: 1, conclusion: "success" } });
+  await route("workflow_run", {
+    action: "completed",
+    repository,
+    workflow_run: { head_sha: w.pr.head, check_suite_id: 1, conclusion: "success" },
+  });
   eq(status(w), "success");
 });
 
 Deno.test("two webhooks at once leave one status comment", async () => {
   const w = world({ author: "TonyD365" });
-  await Promise.all([route("pull_request", pull(w, "synchronize")), route("pull_request", pull(w, "synchronize"))]);
+  await Promise.all([
+    route("pull_request", pull(w, "synchronize")),
+    route("pull_request", pull(w, "synchronize")),
+  ]);
   eq(assistantComments(w).length, 1, "status comments");
 });
 

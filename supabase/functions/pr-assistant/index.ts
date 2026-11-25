@@ -1,7 +1,16 @@
 // GitHub webhook endpoint. Verifies the signature, answers at once, and works in the background.
 import postgres from "npm:postgres@3.4.5";
 import { answerTerms, openNumbers, refresh, sweep, thanks, welcome } from "./assistant.ts";
-import { announceFixed, announceReleased, command, labelByFiles, reminders, stale, triage } from "./bots.ts";
+import {
+  announceFixed,
+  announceReleased,
+  command,
+  deleteMergedBranch,
+  labelByFiles,
+  reminders,
+  stale,
+  triage,
+} from "./bots.ts";
 import { BOT, REPO, termsReply } from "./logic.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
@@ -32,6 +41,7 @@ export async function route(event: string, p: any) {
       if (pr.merged) {
         await thanks(pr.number, pr.user.login, pr.user.type);
         await announceFixed(pr);
+        await deleteMergedBranch(pr).catch((e) => console.error(`branch pr=${pr.number}: ${e}`));
       }
     } else if (PR_ACTIONS.includes(p.action)) {
       if (p.action === "opened" && FIRST_TIME.includes(pr.author_association)) {
