@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.5.0rc1 (2026-11-25)
 
-- Pairing with a 6-digit code: `host.pairing_offer().code` and `dev.pair_with_code()`.
+A release candidate: install with `pip install --pre "lanpair[all]"`.
+
+- **Experimental:** pairing with a 6-digit code: `host.pairing_offer().code` and `dev.pair_with_code()`.
   The code keys CPace (draft-irtf-cfrg-cpace-21, X25519 + SHA-512), so someone on the
   network can test one guess per try; 5 tries, 5 minutes, one device per offer.
 - A `lanpair` command (also `python -m lanpair`): `host`, `join`, `send`, `devices` and

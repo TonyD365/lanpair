@@ -1,7 +1,7 @@
 """``lanpair``: try pairing and messaging between two machines without writing code.
 
-    lanpair host                 show a pairing code, then print and send messages
-    lanpair join [CODE]          pair with a host once, then print and send messages
+    lanpair host                 show a pairing link and a 6-digit code, then chat
+    lanpair join [LINK | CODE]   pair with a host once, then print and send messages
     lanpair send TEXT            send one message from a paired device and exit
     lanpair devices              list the devices paired with this host
     lanpair forget DEVICE        unpair a device (its name or id)
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
 import sys
 import threading
@@ -25,6 +26,7 @@ from .node import Device, Host, Message, PeerInfo
 from .pairing import PairingError
 
 APP = "lanpair-cli"
+_DIGITS = re.compile(r"[0-9]{3}[ -]?[0-9]{3}")
 
 
 def _clean(text: str) -> str:
@@ -101,6 +103,7 @@ def _host(args: argparse.Namespace, stdin: TextIO, out: TextIO) -> int:
             offer = host.pairing_offer(address=address)
             print(f"Pairing as {host.name!r}. On the other machine run:", file=out)
             print(f"  lanpair join '{offer.to_uri()}'", file=out)
+            print(f"or type the 6-digit code (experimental): lanpair join {offer.code}", file=out)
             if args.qr:
                 try:
                     offer.print_qr()
@@ -136,7 +139,10 @@ def _device_paired(dev: Device, code: str | None, args: argparse.Namespace, out:
         print("  lanpair join '<the code it shows>'", file=out, flush=True)
         return False
     try:
-        host = dev.pair(code.strip(), timeout=args.timeout)
+        if _DIGITS.fullmatch(code.strip()):
+            host = dev.pair_with_code(code.strip(), address=args.host, timeout=args.timeout)
+        else:
+            host = dev.pair(code.strip(), timeout=args.timeout)
     except PairingError as e:
         print(f"lanpair: pairing failed: {e}", file=out, flush=True)
         return False
@@ -227,7 +233,10 @@ def parser() -> argparse.ArgumentParser:
     host.add_argument("--no-qr", dest="qr", action="store_false", help="don't print a QR code")
     host.add_argument("--address", help="ip:port to put in the code (default: this machine's)")
     join = sub.add_parser("join", parents=[common], help="pair with a host once, then chat")
-    join.add_argument("code", nargs="?", help="the lanpair://pair?... code the host shows")
+    join.add_argument(
+        "code", nargs="?", help="the lanpair://pair?... link, or the 6-digit code, the host shows"
+    )
+    join.add_argument("--host", help="ip:port of the host, for a 6-digit code without mDNS")
     send = sub.add_parser("send", parents=[common], help="send one message and exit")
     send.add_argument("text", nargs="+")
     sub.add_parser("devices", parents=[common], help="list paired devices")

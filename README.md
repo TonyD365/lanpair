@@ -121,7 +121,7 @@ msg = dev.receive()
 dev.reply(msg, {"state": "open"})  # answers a request
 ```
 
-### No camera? Pair with a 6-digit code
+### No camera? Pair with a 6-digit code (experimental)
 
 ```python
 offer = host.pairing_offer()
@@ -132,6 +132,10 @@ dev.pair_with_code("482913")  # on the device: finds the host with mDNS
 The code keys CPace, a PAKE: someone on the network can test at most one guess per try,
 and the host allows 5 tries, so the chance of guessing is 1 in 200,000. It works once and
 for 5 minutes, like the QR code.
+
+This is new and has not had an external review yet: prefer the QR code where you can, and
+don't rely on the 6-digit code where a mistake would be costly. In 1.5.0rc1, install it
+with `pip install --pre "lanpair[all]"`.
 
 Retried messages are delivered once. For asyncio, use `AsyncHost` and `AsyncDevice`, with the
 same methods. To check a pairing by eye, pass `confirm=` to `pairing_offer()` and `pair()`:

@@ -128,6 +128,36 @@ def highlevel():
     check([e["ok"] for e in v if e["event"] == "echo"] == [True], "[restart] messages still flow")
 
 
+def codepairing():
+    """6-digit code pairing across venvs, the device finding the host with real mDNS."""
+    for f in (WORK / "hl").glob("*"):
+        f.unlink()
+    host = start_hl("codehost", "desk")
+    dev = start_hl("codedevice", "room2")
+    att = start_hl("codeattacker", "attacker")
+    h, rc_h = collect(host, 150)
+    v, rc_v = collect(dev, 150)
+    a, rc_a = collect(att, 150)
+    check(rc_h == rc_v == rc_a == 0, "[code] every process exited cleanly")
+    ev = {(e["role"], e["event"]): e for e in h + v + a}
+    guesses = ev.get(("codeattacker", "wrong_guesses"), {}).get("results")
+    check(guesses == ["rejected", "rejected"], f"[code] wrong codes are rejected ({guesses})")
+    check(
+        ev.get(("codedevice", "paired"), {}).get("host") == "E2E code desk",
+        "[code] device paired with the right code, found by mDNS",
+    )
+    check(
+        ev.get(("codehost", "received"), {}).get("body") == "hello over a code",
+        "[code] the first message after code pairing arrives",
+    )
+    after = ev.get(("codeattacker", "right_code_after_use"), {}).get("result")
+    check(after == "no answer", f"[code] the used code is refused even when right ({after})")
+    check(
+        ev.get(("codehost", "done"), {}).get("devices") == ["E2E code room"],
+        "[code] only the real device is paired",
+    )
+
+
 def collect(p, timeout=60):
     out, err = p.communicate(timeout=timeout)
     if p.returncode:
@@ -239,10 +269,13 @@ for raw in (b'[' * 200000, b'{"a":' * 200000, b'x' * (2 << 20)):
 
     # ---- phase 3: the high-level API (Host / Device), lanpair 1.1+
     version = next(e["version"] for e in starts)
-    if tuple(int(x) for x in version.split(".")[:2]) >= (1, 1):
+    major_minor = tuple(int(x) for x in version.split(".")[:2])
+    if major_minor >= (1, 1):
         highlevel()
     else:
         print(f"     (Host/Device checks skipped: {version} has no high-level API)")
+    if major_minor >= (1, 5):
+        codepairing()
 finally:
     import socket
 

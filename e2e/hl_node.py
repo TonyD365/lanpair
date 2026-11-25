@@ -114,3 +114,58 @@ elif role == "attacker":
             c.sendall(frame)
     out(event="attacks_sent", count=4)
     (shared / "attack.done").write_text("1")
+
+# ---- 6-digit code pairing (lanpair 1.5+): its own app, so earlier pairings don't count.
+elif role == "codehost":
+    with Host("E2E code desk", app="lanpair-e2e-pin") as host:
+        offer = host.pairing_offer()
+        (shared / "code.addr").write_text(f"127.0.0.1:{host.port}")
+        (shared / "code.txt").write_text(offer.code)
+        joined = host.wait_for_pairing(timeout=90)
+        out(event="paired", name=joined.name if joined else None)
+        (shared / "code.paired").write_text("1")
+        msg = host.receive(timeout=20)
+        out(event="received", body=msg.body if msg else None)
+        wait_file("codeatt.done", 60)
+        out(event="done", devices=[d.name for d in host.devices])
+
+elif role == "codedevice":
+    with Device("E2E code room", app="lanpair-e2e-pin") as dev:
+        code = wait_file("code.txt")
+        wait_file("guesses.done")
+        paired = dev.pair_with_code(code, timeout=20)  # finds the host with mDNS
+        out(event="paired", host=paired.name)
+        dev.send("hello over a code")
+        time.sleep(1)
+
+elif role == "codeattacker":
+    from lanpair import PairingError
+    from lanpair.codepair import CodeAttempt
+
+    me = Identity.generate()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.settimeout(2.0)
+    code = wait_file("code.txt")
+    ip, port = wait_file("code.addr").rsplit(":", 1)
+    host = (ip, int(port))
+
+    def guess(value):
+        attempt = CodeAttempt(me, "Mallory", value, app="lanpair-e2e-pin")
+        sock.sendto(b"C" + attempt.request(), host)
+        try:
+            raw, _ = sock.recvfrom(65535)
+        except TimeoutError:
+            return "no answer"
+        try:
+            attempt.answer(raw[1:])
+            return "accepted"
+        except PairingError:
+            return "rejected"
+
+    wrong = [f"{(int(code) + k) % 1_000_000:06d}" for k in (1, 2)]
+    out(event="wrong_guesses", results=[guess(w) for w in wrong])
+    (shared / "guesses.done").write_text("1")
+    wait_file("code.paired", 90)
+    out(event="right_code_after_use", result=guess(code))
+    (shared / "codeatt.done").write_text("1")

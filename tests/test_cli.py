@@ -141,3 +141,19 @@ def test_terminal_control_sequences_are_not_printed():
     assert "\x1b" not in shown and "\x07" not in shown and "\n" not in shown
     assert shown.endswith("text�")
     assert cli._show({"a": "\x1b"}) == '{"a": "\\u001b"}'
+
+
+def test_pair_with_the_six_digit_code(tmp_path, keys):
+    host_in, host_keys = pipe()
+    host_out = Out()
+    host, _ = run(["host", "--no-qr", *common(tmp_path, "desk")], host_in, host_out)
+    code = wait_for(host_out, r"lanpair join ([0-9]{6})").group(1)
+    port = wait_for(host_out, r"pair\?[^']*addr=127\.0\.0\.1%3A([0-9]+)").group(1)
+    out = Out()
+    argv = ["join", code, "--host", f"127.0.0.1:{port}", *common(tmp_path, "room")]
+    dev, result = run(argv, io.StringIO(""), out)
+    dev.join(15)
+    assert result.get("code") == 0, out.text()
+    assert "Paired with 'desk'" in out.text()
+    host_keys.close()
+    host.join(10)

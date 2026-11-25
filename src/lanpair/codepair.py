@@ -1,4 +1,5 @@
-"""Pairing with a 6-digit code, for devices that cannot scan a QR code.
+"""Pairing with a 6-digit code, for devices that cannot scan a QR code. Experimental: this
+protocol has not had an external review yet.
 
 A 6-digit code is far too short to carry a key or to be checked in the clear: an attacker
 could try all million values offline. So the code only keys CPace (:mod:`lanpair.cpace`):
