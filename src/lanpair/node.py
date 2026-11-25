@@ -990,6 +990,8 @@ class Device(_Node):
     ) -> PeerInfo:
         """Pair with the host showing this 6-digit code (``host.pairing_offer().code``).
 
+        Experimental: this protocol has not had an external review yet.
+
         The host is found with mDNS, or at *address* (``"ip:port"``). Returns the host.
         Raises :class:`PairingError` if the code is wrong, no host answers, or the host does
         not confirm within *timeout* seconds. Each try uses up one of the code's attempts.

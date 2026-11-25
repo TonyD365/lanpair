@@ -35,3 +35,7 @@ What it checks:
 Needs Python 3.10+, network access to PyPI, and multicast on the loopback interface (macOS
 and most Linux desktops; not GitHub-hosted runners, so it is not part of CI). Output goes
 to `e2e/work/`, which is ignored by git.
+7. **6-digit code pairing** (lanpair 1.5+): an attacker's two wrong codes are rejected; the
+   device then finds the host with mDNS and pairs with the right code; its first message
+   arrives; the used code is refused afterwards, even when right; only the real device is
+   paired.
