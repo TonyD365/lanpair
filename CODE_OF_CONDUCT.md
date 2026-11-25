@@ -7,7 +7,7 @@ lanpair is about devices that can trust each other. People here should be able t
 - Be welcoming to everyone, whatever their experience, language, background or identity.
 - Assume good intent, and ask before you judge. Many people here write in their second language.
 - Criticise ideas and code, never people. Explain what you would do instead.
-- No harassment, insults, personal attacks, sexual content, or publishing anyone's private details.
+- No harassment, insults, personal attacks, sexual content, or publishinasdadg anyone's private details.
 
 ## Where this applies
 
