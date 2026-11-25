@@ -46,6 +46,7 @@ ever sees it.
 ## Contents
 
 - [Quick look](#quick-look)
+- [中文快速开始](docs/quick-start.zh-CN.md)
 - [What you get](#what-you-get)
 - [How it works](#how-it-works)
 - [Where it's going](#where-its-going)
