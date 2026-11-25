@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pairing with a 6-digit code: `host.pairing_offer().code` and `dev.pair_with_code()`.
+  The code keys CPace (draft-irtf-cfrg-cpace-21, X25519 + SHA-512), so someone on the
+  network can test one guess per try; 5 tries, 5 minutes, one device per offer.
 - A `lanpair` command (also `python -m lanpair`): `host`, `join`, `send`, `devices` and
   `forget`, to try pairing and messaging between two machines without writing code. Text
   from the network is printed without terminal control sequences.

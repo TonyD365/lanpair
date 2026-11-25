@@ -40,8 +40,8 @@ encrypted to its recipient, signed by its sender and checked for replay before y
 ever sees it.
 
 > **Status: 1.x, stable API** under semantic versioning. Tested on Linux, macOS and
-> Windows, property-tested and fuzzed. 6-digit code pairing is still to come. There has
-> been no external security review yet.
+> Windows, property-tested and fuzzed. There has been no external security review yet,
+> including of the new 6-digit code pairing.
 
 ## Contents
 
@@ -120,6 +120,18 @@ results = host.broadcast({"type": "closing"}, ack=True)  # {device_id: True or F
 msg = dev.receive()
 dev.reply(msg, {"state": "open"})  # answers a request
 ```
+
+### No camera? Pair with a 6-digit code
+
+```python
+offer = host.pairing_offer()
+print(offer.code)  # on the host: "482913"
+dev.pair_with_code("482913")  # on the device: finds the host with mDNS
+```
+
+The code keys CPace, a PAKE: someone on the network can test at most one guess per try,
+and the host allows 5 tries, so the chance of guessing is 1 in 200,000. It works once and
+for 5 minutes, like the QR code.
 
 Retried messages are delivered once. For asyncio, use `AsyncHost` and `AsyncDevice`, with the
 same methods. To check a pairing by eye, pass `confirm=` to `pairing_offer()` and `pair()`:
@@ -239,7 +251,7 @@ key. The full threat model, the reasoning behind each layer, and the known limit
 | Confirmed delivery, request/reply, broadcast | ✅ 1.4 |
 | asyncio API (`AsyncHost`, `AsyncDevice`) | ✅ 1.4 |
 | Optional short-code pairing check | ✅ 1.4 |
-| 6-digit code pairing with a PAKE | 🔜 next |
+| 6-digit code pairing with a PAKE (CPace) | ✅ 1.5 |
 
 Want to help with one of these? See the [open issues](https://github.com/TonyD365/lanpair/issues).
 

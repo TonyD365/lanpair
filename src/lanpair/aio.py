@@ -113,6 +113,9 @@ class AsyncDevice(_AsyncNode[Device]):
     async def pair(self, offer: str | PairingOffer, **kwargs: Any) -> PeerInfo:
         return await asyncio.to_thread(self.node.pair, offer, **kwargs)
 
+    async def pair_with_code(self, code: str, **kwargs: Any) -> PeerInfo:
+        return await asyncio.to_thread(self.node.pair_with_code, code, **kwargs)
+
     async def send(self, body: Any, **kwargs: Any) -> None:
         await asyncio.to_thread(self.node.send, body, **kwargs)
 

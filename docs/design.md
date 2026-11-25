@@ -28,10 +28,20 @@ were meant for it, and are not replays.
      secret in constant time. One device per offer; the offer expires (5 min) and locks
      after 5 wrong answers; replayed requests are refused. The host confirms with a sealed
      message, so the device knows the pairing took.
-   - *6-digit code:* too short to carry a key, so it must not be used as a plain shared
-     check — a LAN attacker could swap public keys in transit. Use a PAKE (SPAKE2 or
-     CPace) keyed by the code, and confirm both public keys inside the PAKE transcript.
-     Limit attempts and expire the code.
+   - *6-digit code* (`codepair.py`, `cpace.py`): for devices that cannot scan. The code
+     is far too short to send or check in the clear, so it only keys CPace
+     (draft-irtf-cfrg-cpace-21, X25519 + SHA-512, initiator-responder mode, checked
+     against the draft's test vectors). The device (initiator) sends a random 16-byte
+     `sid`, its share and `ADa` = its public identity and name; the host answers with its
+     share, `ADb` = its identity and name, and an HMAC tag under a key derived from ISK;
+     the device answers with its own tag and an Ed25519 signature over the `sid` and the
+     transcript hash, proving it holds its key. `CI` binds the app name. Both identities
+     are in the transcript, so swapping either changes the key and the tags fail. Each run
+     tests one guess; the host counts every new run as an attempt (a resent first message
+     with the same `sid` is not), allows 5, for 5 minutes, and pairs one device per offer,
+     shared with the QR code. Field arithmetic for Elligator 2 uses Python integers, which
+     are not constant time; a local timing attacker on the host or device could learn about
+     the code, a LAN attacker sees only network timing.
    - Both sides show a short fingerprint of the peer key for an optional visual check.
 4. **Messaging.** Every message is a signed envelope (`envelope.py`): the signature
    covers version, sender id, recipient id, timestamp, sequence number and body.
@@ -82,6 +92,6 @@ were meant for it, and are not replays.
 | Key storage via OS key store | done, tested (`lanpair[keyring]`) |
 | mDNS discovery | done, tested (`lanpair[discovery]`) |
 | QR pairing | done, tested |
-| PAKE code pairing | todo |
+| PAKE code pairing (CPace) | done, tested |
 | Encrypted message bodies | done, tested |
 | `Host` / `Device` high-level API (UDP, TCP for large messages) | done, tested |
