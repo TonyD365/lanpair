@@ -1,11 +1,21 @@
 import {
-  fileLabels, fixedIssues, labelNames, missingInfo, parseCommand, reminderNote, remindSeconds,
-  staleAction, triageLabels,
+  fileLabels,
+  fixedIssues,
+  labelNames,
+  missingInfo,
+  parseCommand,
+  reminderNote,
+  remindSeconds,
+  staleAction,
+  triageLabels,
 } from "./bots_logic.ts";
-import { command } from "./bots.ts";
+import { command, deleteMergedBranch } from "./bots.ts";
+import { shouldDeleteBranch } from "./logic.ts";
 
 function eq(a: unknown, b: unknown) {
-  if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`);
+  if (JSON.stringify(a) !== JSON.stringify(b)) {
+    throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`);
+  }
 }
 const M = "@TonyD365-Agent";
 
@@ -27,13 +37,15 @@ Deno.test("reminders stay within 30 days", () => {
   eq(remindSeconds("soon"), null);
   eq(reminderNote("3d look at @x `this`"), "look at x this");
 });
-Deno.test("label names split on spaces and commas", () => eq(labelNames("a, b  c"), ["a", "b", "c"]));
+Deno.test("label names split on spaces and commas", () =>
+  eq(labelNames("a, b  c"), ["a", "b", "c"]));
 Deno.test("issue triage", () => {
   eq(triageLabels("mDNS fails", "on Ubuntu"), ["discovery", "platform: Linux"]);
   eq(missingInfo("bug", "lanpair 1.4.1 on macOS"), []);
   eq(missingInfo("bug", "broken").length, 2);
 });
-Deno.test("fixed issues", () => eq(fixedIssues("Fixes #12", "closes #3, resolved #12, see #9"), [3, 12]));
+Deno.test("fixed issues", () =>
+  eq(fixedIssues("Fixes #12", "closes #3, resolved #12, see #9"), [3, 12]));
 Deno.test("file labels", () => {
   eq(fileLabels(["README.md", "tests/a.py", ".github/x.yml"]), ["ci", "documentation", "tests"]);
   eq(fileLabels(["src/lanpair/pairing.py", "src/README.md"]), ["crypto"]);
@@ -41,10 +53,29 @@ Deno.test("file labels", () => {
 Deno.test("stale pull requests", () => {
   const day = 86400_000;
   const now = 100 * day;
-  eq(staleAction({ labels: ["Needs-Author-Action"], lastActivity: now - 31 * day, staleNote: null, now }), "mark");
+  eq(
+    staleAction({
+      labels: ["Needs-Author-Action"],
+      lastActivity: now - 31 * day,
+      staleNote: null,
+      now,
+    }),
+    "mark",
+  );
   eq(staleAction({ labels: ["Needs-Review"], lastActivity: 0, staleNote: null, now }), "none");
-  eq(staleAction({ labels: ["Stale"], lastActivity: now - day, staleNote: now - 2 * day, now }), "unmark");
-  eq(staleAction({ labels: ["Stale"], lastActivity: now - 90 * day, staleNote: now - 31 * day, now }), "close");
+  eq(
+    staleAction({ labels: ["Stale"], lastActivity: now - day, staleNote: now - 2 * day, now }),
+    "unmark",
+  );
+  eq(
+    staleAction({
+      labels: ["Stale"],
+      lastActivity: now - 90 * day,
+      staleNote: now - 31 * day,
+      now,
+    }),
+    "close",
+  );
 });
 
 function fakeGitHub() {
@@ -83,4 +114,43 @@ Deno.test("shadow mode sends nothing", async () => {
   const writes = fakeGitHub();
   await command(event(`${M} /close`, 1, "OWNER"));
   eq(writes.length, 0);
+});
+
+Deno.test("which merged branches are deleted", () => {
+  const base = {
+    fromFork: false,
+    branch: "fix-x",
+    defaultBranch: "main",
+    labels: [],
+    baseOfOpenPulls: false,
+  };
+  eq(shouldDeleteBranch(base), true);
+  eq(shouldDeleteBranch({ ...base, fromFork: true }), false);
+  eq(shouldDeleteBranch({ ...base, branch: "main" }), false);
+  eq(shouldDeleteBranch({ ...base, labels: ["Keep-Branch"] }), false);
+  eq(shouldDeleteBranch({ ...base, baseOfOpenPulls: true }), false);
+});
+
+Deno.test("a merged branch is deleted, with the right path", async () => {
+  Deno.env.set("BOTS_LIVE", "1");
+  const writes: string[] = [];
+  globalThis.fetch = ((input: string, init: RequestInit = {}) => {
+    const url = new URL(String(input));
+    if ((init.method ?? "GET") !== "GET") writes.push(`${init.method} ${url.pathname}`);
+    const body = url.pathname.endsWith("/pulls") ? [] : { default_branch: "main" };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+  }) as typeof fetch;
+  await deleteMergedBranch({
+    head: { ref: "feat/a b", repo: { full_name: "TonyD365/lanpair" } },
+    labels: [],
+  });
+  eq(writes, ["DELETE /repos/TonyD365/lanpair/git/refs/heads/feat/a%20b"]);
+});
+
+Deno.test("only the author or a maintainer can keep a branch", async () => {
+  Deno.env.set("BOTS_LIVE", "1");
+  Deno.env.set("GITHUB_TOKEN", "test");
+  const writes = fakeGitHub();
+  await command(event(`${M} /keep-branch`, 2, "NONE"));
+  eq(writes.some((w) => w.endsWith("/issues/5/labels")), false);
 });

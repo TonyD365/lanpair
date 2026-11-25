@@ -53,7 +53,11 @@ export type State = {
   terms: Terms;
   askedBy?: string;
   askedUrl?: string;
+  branch?: string; // the head branch, when it is in this repository (not a fork)
+  keepBranch?: boolean;
 };
+
+export const KEEP_BRANCH = "Keep-Branch"; // not in COLOURS: the status sync must not remove it
 
 export function latestChecks(all: Check[], doneSuite = 0, doneConclusion = ""): Check[] {
   const latest = new Map<string, Check>();
@@ -70,11 +74,13 @@ export function latestChecks(all: Check[], doneSuite = 0, doneConclusion = ""): 
 
 export function counts(s: State) {
   const total = s.checks.length;
-  const failedChecks = s.checks.filter((c) => ["failure", "timed_out"].includes(c.conclusion ?? ""));
+  const failedChecks = s.checks.filter((c) =>
+    ["failure", "timed_out"].includes(c.conclusion ?? "")
+  );
   const runningChecks = s.checks.filter((c) => c.status !== "completed");
-  const internal = s.checks.filter((c) =>
-    ["cancelled", "startup_failure", "stale"].includes(c.conclusion ?? "")
-  ).length;
+  const internal =
+    s.checks.filter((c) => ["cancelled", "startup_failure", "stale"].includes(c.conclusion ?? ""))
+      .length;
   // A job just re-run can be missing for a few seconds; an unfinished run still counts.
   const running = runningChecks.length || s.busy;
   return { total, failed: failedChecks.length, failedChecks, runningChecks, running, internal };
@@ -100,15 +106,22 @@ export function wantedLabels(s: State): string[] {
   return want;
 }
 
-export function aggregate(s: State): { state: "pending" | "failure" | "success"; description: string } {
+export function aggregate(
+  s: State,
+): { state: "pending" | "failure" | "success"; description: string } {
   const { total, failed, running, internal } = counts(s);
   const noTerms = s.terms === "no" || s.terms === "declined";
   let r: { state: "pending" | "failure" | "success"; description: string };
-  if (s.waiting.length) r = { state: "pending", description: "Workflows wait for the maintainer's approval to run" };
-  else if (total === 0 || running) r = { state: "pending", description: "Checks are running" };
+  if (s.waiting.length) {
+    r = { state: "pending", description: "Workflows wait for the maintainer's approval to run" };
+  } else if (total === 0 || running) r = { state: "pending", description: "Checks are running" };
   else if (failed) r = { state: "failure", description: `${failed} check(s) failed` };
-  else if (internal) r = { state: "failure", description: `${internal} check(s) cancelled: comment @TonyD365-Agent /retest` };
-  else if (noTerms) r = { state: "failure", description: "Contribution terms not agreed yet" };
+  else if (internal) {
+    r = {
+      state: "failure",
+      description: `${internal} check(s) cancelled: comment @TonyD365-Agent /retest`,
+    };
+  } else if (noTerms) r = { state: "failure", description: "Contribution terms not agreed yet" };
   else r = { state: "success", description: "Every check passed" };
   if (r.state === "pending" && noTerms) r.description += "; terms not agreed yet";
   return r;
@@ -127,11 +140,19 @@ export function kind(s: State): string {
 }
 
 export function hint(name: string): string {
-  if (name.includes("Lint and type-check")) return "Run `ruff check .`, `ruff format .` and `mypy src`, then push the fixes.";
+  if (name.includes("Lint and type-check")) {
+    return "Run `ruff check .`, `ruff format .` and `mypy src`, then push the fixes.";
+  }
   if (name.startsWith("Tests")) return "A test failed: open the log, then run `pytest` locally.";
-  if (name.includes("Dependency audit")) return "A dependency has a known vulnerability: raise it to the fixed version (the log names it).";
-  if (name.includes("zizmor")) return "A workflow file has a security problem: see the annotation on the Files tab.";
-  if (name.startsWith("CodeQL")) return "Code scanning found a possible security problem in the changed code: see the annotation on the PR's Files tab.";
+  if (name.includes("Dependency audit")) {
+    return "A dependency has a known vulnerability: raise it to the fixed version (the log names it).";
+  }
+  if (name.includes("zizmor")) {
+    return "A workflow file has a security problem: see the annotation on the Files tab.";
+  }
+  if (name.startsWith("CodeQL")) {
+    return "Code scanning found a possible security problem in the changed code: see the annotation on the PR's Files tab.";
+  }
   return "Open the log for details.";
 }
 
@@ -154,43 +175,98 @@ export function renderStatus(s: State, labels: string[], now: Date): string {
   else if (c.running) out.push(`### ⏳ ${c.running} of ${c.total} checks still running`);
   else if (c.internal) out.push(`### ⚠️ ${c.internal} of ${c.total} checks were cancelled`);
   else out.push(`### ✅ All ${c.total} checks passed`);
-  out.push("", `Hi @${s.author}, I keep this comment up to date with the state of this pull request.`);
+  out.push(
+    "",
+    `Hi @${s.author}, I keep this comment up to date with the state of this pull request.`,
+  );
   if (s.review === "CHANGES_REQUESTED") {
     const url = s.askedUrl ?? `${SERVER}/${REPO}/pull/${s.number}/files`;
-    out.push("", `**The maintainer (\`${s.askedBy ?? "maintainer"}\`) asked for changes before this can be merged.** Please read [the review](${url}), make the changes and push them; the review is then looked at again. Auto-merge stays off until it is approved.`);
+    out.push(
+      "",
+      `**The maintainer (\`${
+        s.askedBy ?? "maintainer"
+      }\`) asked for changes before this can be merged.** Please read [the review](${url}), make the changes and push them; the review is then looked at again. Auto-merge stays off until it is approved.`,
+    );
   }
   if (c.failed) {
     out.push("", "**What failed, and what it usually means**", "");
     for (const f of c.failedChecks) out.push(`- [${f.name}](${f.html_url}): ${hint(f.name)}`);
   }
   if (c.running) {
-    out.push("", "**Still running** (queued ones are waiting for a GitHub runner; GitHub's checks list can hide them when a newer run of the same workflow was skipped)", "");
-    for (const r of c.runningChecks) out.push(`- [${r.name}](${r.html_url}): ${r.status.replace("_", " ")}`);
+    out.push(
+      "",
+      "**Still running** (queued ones are waiting for a GitHub runner; GitHub's checks list can hide them when a newer run of the same workflow was skipped)",
+      "",
+    );
+    for (const r of c.runningChecks) {
+      out.push(`- [${r.name}](${r.html_url}): ${r.status.replace("_", " ")}`);
+    }
   }
   if (s.waiting.length) {
-    out.push("", "**Waiting for approval to run:** GitHub runs workflows from a first-time contributor's fork only after the maintainer approves them, to keep the repository safe. Nothing for you to do; this comment updates once they have run.", "");
+    out.push(
+      "",
+      "**Waiting for approval to run:** GitHub runs workflows from a first-time contributor's fork only after the maintainer approves them, to keep the repository safe. Nothing for you to do; this comment updates once they have run.",
+      "",
+    );
     for (const w of s.waiting) out.push(`- ${w}`);
   }
   if (s.conflict) {
-    out.push("", "**Merge conflict:** this pull request and `main` change the same lines, so it cannot be merged (auto-merge waits). Bring `main` into your branch, fix the conflicting files, and push: `git fetch origin && git merge origin/main`, or use **Resolve conflicts** on this page. [How to resolve a merge conflict](https://docs.github.com/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-on-github)");
+    out.push(
+      "",
+      "**Merge conflict:** this pull request and `main` change the same lines, so it cannot be merged (auto-merge waits). Bring `main` into your branch, fix the conflicting files, and push: `git fetch origin && git merge origin/main`, or use **Resolve conflicts** on this page. [How to resolve a merge conflict](https://docs.github.com/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-on-github)",
+    );
   }
-  if (c.internal) out.push("", `**Internal error:** ${c.internal} check(s) were cancelled or could not start, which is usually GitHub, not this change. Comment \`@TonyD365-Agent /retest\` to run them again.`);
-  if (noTerms) out.push("", `**Contribution terms:** please read the terms in the comment above and, if you agree, reply with a comment that says exactly \`${REPLY}\`. Nothing can be merged before that.`);
+  if (c.internal) {
+    out.push(
+      "",
+      `**Internal error:** ${c.internal} check(s) were cancelled or could not start, which is usually GitHub, not this change. Comment \`@TonyD365-Agent /retest\` to run them again.`,
+    );
+  }
+  if (noTerms) {
+    out.push(
+      "",
+      `**Contribution terms:** please read the terms in the comment above and, if you agree, reply with a comment that says exactly \`${REPLY}\`. Nothing can be merged before that.`,
+    );
+  }
+  if (s.branch) {
+    out.push(
+      "",
+      s.keepBranch
+        ? `**Branch:** \`${s.branch}\` is kept after merging. To delete it then, comment \`@${BOT} /delete-branch\`.`
+        : `**Branch:** once merged, \`${s.branch}\` is deleted automatically. To keep it, comment \`@${BOT} /keep-branch\`.`,
+    );
+  }
   if (labels.length) out.push("", `**Labels:** ${labels.join(", ")}`);
   out.push("", "**Next**");
   if (s.draft) out.push("- This is a draft: mark it ready for review when it is done.");
-  else if (s.review === "CHANGES_REQUESTED") out.push("- Make the changes asked for in the review and push them.");
-  else if (s.conflict) out.push("- Resolve the merge conflict with `main` (see above) and push.");
-  else if (noTerms) out.push(`- Reply \`${REPLY}\` to agree to the contribution terms (see above).`);
-  else if (s.waiting.length) out.push("- The maintainer approves the waiting workflows; then the checks run.");
-  else if (c.failed) out.push("- Fix the failures above and push; the checks run again by themselves.");
-  else if (c.running) out.push("- Wait for the running checks; this comment updates when they finish.");
-  else if (c.internal) out.push("- Comment `@TonyD365-Agent /retest` to run the cancelled checks again.");
-  if (s.review === "APPROVED") out.push("- Approved by the maintainer: it merges by itself once every check passes (auto-merge is on).");
-  else if (s.review === "CHANGES_REQUESTED") out.push("- The maintainer asked for changes: see the review.");
-  else out.push("- It needs the maintainer's approval before it can be merged.");
+  else if (s.review === "CHANGES_REQUESTED") {
+    out.push("- Make the changes asked for in the review and push them.");
+  } else if (s.conflict) out.push("- Resolve the merge conflict with `main` (see above) and push.");
+  else if (noTerms) {
+    out.push(`- Reply \`${REPLY}\` to agree to the contribution terms (see above).`);
+  } else if (s.waiting.length) {
+    out.push("- The maintainer approves the waiting workflows; then the checks run.");
+  } else if (c.failed) {
+    out.push("- Fix the failures above and push; the checks run again by themselves.");
+  } else if (c.running) {
+    out.push("- Wait for the running checks; this comment updates when they finish.");
+  } else if (c.internal) {
+    out.push("- Comment `@TonyD365-Agent /retest` to run the cancelled checks again.");
+  }
+  if (s.review === "APPROVED") {
+    out.push(
+      "- Approved by the maintainer: it merges by itself once every check passes (auto-merge is on).",
+    );
+  } else if (s.review === "CHANGES_REQUESTED") {
+    out.push("- The maintainer asked for changes: see the review.");
+  } else out.push("- It needs the maintainer's approval before it can be merged.");
   const when = now.toISOString().slice(0, 16).replace("T", " ");
-  out.push("", `<sub>[How the checks work](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#before-you-open-a-pull-request) · updated ${when} UTC for ${s.head.slice(0, 7)}</sub>`);
+  out.push(
+    "",
+    `<sub>[How the checks work](${SERVER}/${REPO}/blob/main/CONTRIBUTING.md#before-you-open-a-pull-request) · updated ${when} UTC for ${
+      s.head.slice(0, 7)
+    }</sub>`,
+  );
   return out.join("\n") + "\n";
 }
 
@@ -210,15 +286,24 @@ export function addressed(body: string): string | null {
 export function termsReply(body: string): "agreed" | "declined" | null {
   const text = addressed(body);
   if (text === null) return null;
-  const said = text.replaceAll("\r", "").replaceAll("’", "'").toLowerCase().trim().replace(/\.$/, "");
+  const said = text.replaceAll("\r", "").replaceAll("’", "'").toLowerCase().trim().replace(
+    /\.$/,
+    "",
+  );
   if (said === PHRASE.toLowerCase()) return "agreed";
-  if (said === DECLINE.toLowerCase() || said === "i don't agree to the lanpair contribution terms") return "declined";
+  if (
+    said === DECLINE.toLowerCase() || said === "i don't agree to the lanpair contribution terms"
+  ) return "declined";
   return null;
 }
 
 // The latest ledger entry for a person decides. Matched by account id, or by login for
 // entries from before ids were recorded.
-export function ledgerState(lines: string[], id: number, login: string): "agreed" | "declined" | "none" {
+export function ledgerState(
+  lines: string[],
+  id: number,
+  login: string,
+): "agreed" | "declined" | "none" {
   let state: "agreed" | "declined" | "none" = "none";
   for (const line of lines) {
     const m = line.match(/^<!-- terms:(agreed|declined):(.*) -->$/);
@@ -248,4 +333,16 @@ export function termsMarkdown(contributing: string): string {
     out.push(line.replace(/\]\(([A-Za-z_]+(\.md)?)\)/g, `](${SERVER}/${REPO}/blob/main/$1)`));
   }
   return out.join("\n").trim();
+}
+
+// Whether the bot deletes a merged pull request's branch.
+export function shouldDeleteBranch(o: {
+  fromFork: boolean;
+  branch: string;
+  defaultBranch: string;
+  labels: string[];
+  baseOfOpenPulls: boolean;
+}): boolean {
+  return !o.fromFork && o.branch !== o.defaultBranch && !o.labels.includes(KEEP_BRANCH) &&
+    !o.baseOfOpenPulls;
 }
