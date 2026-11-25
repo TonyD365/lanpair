@@ -559,3 +559,72 @@ def test_asyncio_api(tmp_path):
             assert (await dev.receive(timeout=2)).body == "hi"
 
     asyncio.run(main())
+
+
+def code_offer(host):
+    offer = host.pairing_offer(address=f"127.0.0.1:{host.port}")
+    return offer, f"127.0.0.1:{host.port}"
+
+
+def test_pair_with_a_six_digit_code(tmp_path):
+    host = make(Host, "desk", tmp_path)
+    dev = make(Device, "room3", tmp_path)
+    try:
+        offer, addr = code_offer(host)
+        assert len(offer.code) == 6 and offer.code.isdigit()
+        paired = dev.pair_with_code(offer.code, address=addr, timeout=5)
+        assert paired.device_id == host.device_id
+        assert host.wait_for_pairing(timeout=3).device_id == dev.device_id
+        dev.send("hello over a code")
+        assert host.receive(timeout=3).body == "hello over a code"
+        host.send(dev.device_id, "and back")
+        assert dev.receive(timeout=3).body == "and back"
+    finally:
+        host.close()
+        dev.close()
+
+
+def test_wrong_code_does_not_pair(tmp_path):
+    host = make(Host, "desk", tmp_path)
+    dev = make(Device, "room3", tmp_path)
+    try:
+        offer, addr = code_offer(host)
+        wrong = f"{(int(offer.code) + 1) % 1_000_000:06d}"
+        with pytest.raises(PairingError, match="wrong pairing code"):
+            dev.pair_with_code(wrong, address=addr, timeout=3)
+        assert host.devices == [] and dev.host is None
+    finally:
+        host.close()
+        dev.close()
+
+
+def test_code_is_closed_after_the_qr_code_pairs(tmp_path):
+    host = make(Host, "desk", tmp_path)
+    a = make(Device, "a", tmp_path)
+    b = make(Device, "b", tmp_path)
+    try:
+        offer, addr = code_offer(host)
+        a.pair(offer.to_uri(), timeout=4)
+        with pytest.raises(PairingError):
+            b.pair_with_code(offer.code, address=addr, timeout=2)
+        assert [d.device_id for d in host.devices] == [a.device_id]
+    finally:
+        host.close()
+        a.close()
+        b.close()
+
+
+def test_qr_code_is_closed_after_the_code_pairs(tmp_path):
+    host = make(Host, "desk", tmp_path)
+    a = make(Device, "a", tmp_path)
+    b = make(Device, "b", tmp_path)
+    try:
+        offer, addr = code_offer(host)
+        a.pair_with_code(offer.code, address=addr, timeout=4)
+        with pytest.raises(PairingError):
+            b.pair(offer.to_uri(), timeout=2)
+        assert [d.device_id for d in host.devices] == [a.device_id]
+    finally:
+        host.close()
+        a.close()
+        b.close()

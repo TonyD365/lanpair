@@ -35,12 +35,14 @@ from typing import Any, NamedTuple, TypeVar
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
+from .codepair import CodeAttempt, CodeSession
 from .envelope import DEFAULT_MAX_SIZE, EnvelopeError, JsonFileSeqStore, Opener, Sealer
 from .identity import Identity, PublicIdentity
 from .pairing import PairingError, PairingOffer, PairingSession, make_request, pairing_code
 
 _MSG = b"M"  # an envelope
 _PAIR = b"P"  # a pairing request
+_CODE = b"C"  # a step of pairing with a 6-digit code
 MAX_DATAGRAM = 9000  # bytes; macOS refuses larger UDP datagrams by default
 MAX_MESSAGE = DEFAULT_MAX_SIZE  # bytes of envelope; what a receiver accepts by default
 _POLL = 0.25  # seconds; how quickly the receive thread notices close()
@@ -523,6 +525,11 @@ class _Node:
                 raise ValueError("pairing requests travel over UDP")
             self._on_pair_request(payload, source)
             return
+        if kind == _CODE:
+            if source is None:
+                raise ValueError("pairing requests travel over UDP")
+            self._on_code(payload, source)
+            return
         if kind != _MSG:
             raise ValueError("unknown datagram")
         try:
@@ -667,6 +674,9 @@ class _Node:
     def _on_pair_request(self, payload: bytes, source: str) -> None:
         raise PairingError("this device does not accept pairing requests")
 
+    def _on_code(self, payload: bytes, source: str) -> None:
+        raise PairingError("unexpected code pairing message")
+
     def _on_control(self, peer: PeerInfo, body: dict[str, Any]) -> None:
         pass
 
@@ -721,6 +731,7 @@ class Host(_Node):
     def __init__(self, name: str, **kwargs: Any) -> None:
         super().__init__(name, **kwargs)
         self._session: PairingSession | None = None
+        self._code_session: CodeSession | None = None
         self._paired_events: queue.Queue[PeerInfo] = queue.Queue()
         self._confirm: Confirm | None = None
         self._confirming: dict[str, str] = {}  # device id -> waiting, accepted or refused
@@ -753,6 +764,9 @@ class Host(_Node):
             app=self.app,
         )
         self._session = PairingSession(self.identity, offer, max_attempts=max_attempts)
+        self._code_session = CodeSession(
+            self.identity, self.name, offer.code, app=self.app, ttl=ttl, max_attempts=max_attempts
+        )
         self._confirm = confirm
         self._confirming = {}
         return offer
@@ -841,6 +855,16 @@ class Host(_Node):
                     target=self._ask_confirm, args=(peer, code, confirm), daemon=True
                 ).start()
 
+    def _on_code(self, payload: bytes, source: str) -> None:
+        session = self._code_session
+        if session is None:
+            raise PairingError("no pairing code is open")
+        if payload.startswith(b'{"t":"code1"'):
+            self._sock.sendto(_CODE + session.start(payload), _split(source))
+            return
+        ident, name = session.finish(payload)
+        self._finish_pairing(PeerInfo(ident.device_id, name, ident, source))
+
     def _ask_confirm(self, peer: PeerInfo, code: str, confirm: Confirm) -> None:
         try:
             accepted = confirm(code) is True
@@ -853,6 +877,11 @@ class Host(_Node):
             self._send_quietly(peer, {"lanpair": "pair-refused"})
 
     def _finish_pairing(self, peer: PeerInfo) -> None:
+        # One device per offer, whichever way it paired (QR code or 6-digit code).
+        if self._session is not None and self._session._paired is None:
+            self._session.close()
+        if self._code_session is not None and self._code_session._paired is None:
+            self._code_session.close()
         known = self._book.get(peer.device_id)
         self._add_peer(peer)
         self._send(peer, {"lanpair": "paired", "name": self.name, "session": self._session_field()})
@@ -879,6 +908,7 @@ class Device(_Node):
         self._host_waiting = threading.Event()
         self._host_refused = threading.Event()
         self._host_id: str | None = None
+        self._code_replies: queue.Queue[tuple[bytes, str]] = queue.Queue(maxsize=16)
         peers = self._book.all()
         if peers:
             self._host_id = peers[0].device_id
@@ -954,6 +984,77 @@ class Device(_Node):
         if self._host_refused.is_set():
             raise PairingError("the host refused the pairing")
         raise PairingError("the host did not confirm the pairing")
+
+    def pair_with_code(
+        self, code: str, *, address: str | None = None, timeout: float = 10.0
+    ) -> PeerInfo:
+        """Pair with the host showing this 6-digit code (``host.pairing_offer().code``).
+
+        The host is found with mDNS, or at *address* (``"ip:port"``). Returns the host.
+        Raises :class:`PairingError` if the code is wrong, no host answers, or the host does
+        not confirm within *timeout* seconds. Each try uses up one of the code's attempts.
+        """
+        if self._thread is None:
+            raise PairingError("call start() before pair_with_code()")
+        attempt = CodeAttempt(self.identity, self.name, code, app=self.app)
+        targets = [address] if address else self._find_hosts()
+        if not targets:
+            raise PairingError("no host found on the network: pass address='ip:port'")
+        while not self._code_replies.empty():
+            self._code_replies.get_nowait()
+        deadline = time.monotonic() + timeout
+        found: tuple[PublicIdentity, str, bytes, str] | None = None
+        while found is None and time.monotonic() < deadline:
+            for target in targets:
+                self._sock.sendto(_CODE + attempt.request(), _split(target))
+            end = min(deadline, time.monotonic() + 1.0)
+            while found is None and time.monotonic() < end:
+                try:
+                    raw, source = self._code_replies.get(timeout=max(0.0, end - time.monotonic()))
+                except queue.Empty:
+                    break
+                try:
+                    host_id, host_name, finish = attempt.answer(raw)
+                except PairingError as e:
+                    if "wrong pairing code" in str(e):
+                        raise
+                    continue
+                found = (host_id, host_name, finish, source)
+        if found is None:
+            raise PairingError("no host answered: check the code and that it is still shown")
+        host_id, host_name, finish, source = found
+        previous = self.host
+        host = PeerInfo(host_id.device_id, host_name, host_id, source)
+        self._add_peer(host)
+        self._pending = host.device_id
+        self._confirmed.clear()
+        while time.monotonic() < deadline:
+            self._sock.sendto(_CODE + finish, _split(source))
+            if self._wait_for_host(min(1.0, max(0.0, deadline - time.monotonic()))):
+                if previous is not None and previous.device_id != host.device_id:
+                    self._book.remove(previous.device_id)
+                    self._opener.remove_peer(previous.device_id)
+                self._host_id = host.device_id
+                result = self._book.get(host.device_id)
+                assert result is not None
+                self._tell_session(result, force=True)
+                return result
+        if previous is None or previous.device_id != host.device_id:
+            self._book.remove(host.device_id)
+            self._opener.remove_peer(host.device_id)
+        raise PairingError("the host did not confirm the pairing")
+
+    def _find_hosts(self) -> list[str]:
+        if not self._announce:
+            return []
+        from .discovery import browse
+
+        return [d.address for d in browse(2.0, app=self.app) if d.device_id != self.device_id]
+
+    def _on_code(self, payload: bytes, source: str) -> None:
+        if self._code_replies.full():
+            raise PairingError("too many pairing answers")
+        self._code_replies.put((payload, source))
 
     def _wait_for_host(self, seconds: float) -> bool:
         end = time.monotonic() + seconds

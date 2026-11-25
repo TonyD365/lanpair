@@ -24,6 +24,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import threading
 import time
 from collections.abc import Callable
@@ -62,6 +63,8 @@ class PairingOffer:
     secret: bytes = field(repr=False)
     expires: float  # Unix time
     app: str = "lanpair"
+    code: str = field(default="", repr=False, compare=False)
+    """Six digits to type instead of scanning (host side only; not in the QR code)."""
 
     @classmethod
     def create(
@@ -74,7 +77,15 @@ class PairingOffer:
         app: str = "lanpair",
         clock: Callable[[], float] = time.time,
     ) -> PairingOffer:
-        return cls(host, name, address, os.urandom(16), clock() + ttl, app)
+        return cls(
+            host,
+            name,
+            address,
+            os.urandom(16),
+            clock() + ttl,
+            app,
+            f"{secrets.randbelow(10**6):06d}",
+        )
 
     def to_uri(self) -> str:
         """``lanpair://pair?...``: put this in the QR code."""
@@ -204,6 +215,11 @@ class PairingSession:
             and self._attempts < self.max_attempts
             and not self.offer.expired(self.clock())
         )
+
+    def close(self) -> None:
+        """No more pairing with this offer (the 6-digit code was used instead)."""
+        with self._lock:
+            self._attempts = self.max_attempts
 
     def accept(self, raw: bytes) -> tuple[PublicIdentity, str]:
         """Check a pairing request. Returns the device's identity and name.

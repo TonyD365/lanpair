@@ -85,7 +85,7 @@ jobs:
   fuzz:
     # Coverage-guided fuzzing of the code that parses untrusted network input. Anything
     # other than EnvelopeError is a crash, which fails the job and keeps the crashing input.
-    name: Fuzz Opener.open
+    name: Fuzz network input
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -103,6 +103,11 @@ jobs:
           mkdir -p corpus-work
           python fuzz/fuzz_opener.py corpus-work fuzz/corpus -dict=fuzz/json.dict \
             -max_total_time=60 -artifact_prefix=crash-
+      - name: Fuzz the 6-digit code pairing messages for 45 seconds
+        run: |
+          mkdir -p code-work
+          python fuzz/fuzz_codepair.py code-work -dict=fuzz/json.dict \
+            -max_total_time=45 -artifact_prefix=crash-code-
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

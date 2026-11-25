@@ -37,7 +37,7 @@ screens during pairing. Especially welcome:
 
 - a way to get a message accepted that the paired peer did not send, or that was meant for
   another device, or that was already accepted once;
-- a way to pair without seeing the QR code or the short code;
+- a way to pair without seeing the QR code, the 6-digit code or the short code;
 - key material showing up anywhere outside the OS key store.
 
 ## Verifying a release
